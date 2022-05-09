@@ -1,7 +1,9 @@
-
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_ParmParse.H>
-#include <AMReX_Print.H>
+#include <AMReX_MLABecLaplacian.H>
+#include <AMReX_MLMG.H> 
+#include <AMReX_MultiFab.H> 
+#include <AMReX_VisMF.H>
 
 #include "myfunc.H"
 #include "myfunc_F.H"  // includes advance.cpp
@@ -21,12 +23,39 @@ int main (int argc, char* argv[])
 void main_main ()
 {
     // What time is it now?  We'll use this to compute total run time.
-    auto strt_time = amrex::second();
+    Real total_step_strt_time = ParallelDescriptor::second();
 
-    // AMREX_SPACEDIM: number of dimensions
-    int n_cell, max_grid_size, nsteps, plot_int;
-    Vector<int> bc_lo(AMREX_SPACEDIM,0);
-    Vector<int> bc_hi(AMREX_SPACEDIM,0);
+    // size of each box
+    int max_grid_size;
+
+    // total steps in the simulation
+    int nsteps;
+
+    // Default plot_int to -1, allow us to set it to something else in the inputs file
+    //  If plot_int < 0 then no plot files will be writtenq
+    int plot_int;
+
+    // time step
+    Real dt; 
+
+    amrex::GpuArray<amrex::Real, 3> prob_lo; // physical lo coordinate
+    amrex::GpuArray<amrex::Real, 3> prob_hi; // physical hi coordinate
+
+    int phi_bc_flag_hi;
+    int phi_bc_flag_lo;
+
+    // Robin BC parameters
+    Real robin_bc_lo_a;
+    Real robin_bc_hi_a;
+    Real robin_bc_lo_b;
+    Real robin_bc_hi_b;
+    Real robin_bc_lo_f;
+    Real robin_bc_hi_f;
+
+    int TimeIntegratorOrder;
+
+    // magnon diffusion parameters
+    Real D_const, tau_p;
 
     // inputs parameters
     {
@@ -34,11 +63,30 @@ void main_main ()
         ParmParse pp;
 
         // We need to get n_cell from the inputs file - this is the number of cells on each side of
-        //   a square (or cubic) domain.
-        pp.get("n_cell",n_cell);
+        amrex::Vector<int> temp_int(AMREX_SPACEDIM);
+        if (pp.queryarr("n_cell",temp_int)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                n_cell[i] = temp_int[i];
+            }
+        }
 
         // The domain is broken into boxes of size max_grid_size
         pp.get("max_grid_size",max_grid_size);
+
+        pp.get("phi_bc_flag_hi",phi_bc_flag_hi); // 0 : P = 0, 1 : dp/dz = p/lambda, 2 : dp/dz = 0
+        pp.get("phi_bc_flag_lo",phi_bc_flag_hi); // 0 : P = 0, 1 : dp/dz = p/lambda, 2 : dp/dz = 0
+        pp.get("robin_bc_lo_a",robin_bc_lo_a);
+        pp.get("robin_bc_hi_a",robin_bc_hi_a);
+        pp.get("robin_bc_lo_b",robin_bc_lo_b);
+        pp.get("robin_bc_hi_b",robin_bc_hi_b);
+        pp.get("robin_bc_lo_f",robin_bc_lo_f);
+        pp.get("robin_bc_hi_f",robin_bc_hi_f);
+
+	    pp.get("TimeIntegratorOrder",TimeIntegratorOrder);
+
+        // Material Properties
+        pp.get("D_const",D_const); // diffusion constant
+        pp.get("tau_p",  tau_p); // relaxation time constant
 
         // Default plot_int to -1, allow us to set it to something else in the inputs file
         //  If plot_int < 0 then no plot files will be writtenq
@@ -49,16 +97,19 @@ void main_main ()
         nsteps = 10;
         pp.query("nsteps",nsteps);
 
-        // read in BC; see Src/Base/AMReX_BC_TYPES.H for supported types
-        pp.queryarr("bc_lo", bc_lo);
-        pp.queryarr("bc_hi", bc_hi);
-    }
+        // time step
+        pp.get("dt",dt);
 
-    // determine whether boundary conditions are periodic
-    Vector<int> is_periodic(AMREX_SPACEDIM,0);
-    for (int idim=0; idim < AMREX_SPACEDIM; ++idim) {
-        if (bc_lo[idim] == BCType::int_dir && bc_hi[idim] == BCType::int_dir) {
-            is_periodic[idim] = 1;
+        amrex::Vector<amrex::Real> temp(AMREX_SPACEDIM);
+        if (pp.queryarr("prob_lo",temp)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                prob_lo[i] = temp[i];
+            }
+        }
+        if (pp.queryarr("prob_hi",temp)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                prob_hi[i] = temp[i];
+            }
         }
     }
 
@@ -75,9 +126,9 @@ void main_main ()
         // Break up boxarray "ba" into chunks no larger than "max_grid_size" along a direction
         ba.maxSize(max_grid_size);
 
-       // This defines the physical box, [-1,1] in each direction.
-        RealBox real_box({AMREX_D_DECL(-1.0,-1.0,-1.0)},
-                         {AMREX_D_DECL( 1.0, 1.0, 1.0)});
+        // This defines the physical box in each direction.
+        RealBox real_box({AMREX_D_DECL( prob_lo[0], prob_lo[1], prob_lo[2])},
+                     {AMREX_D_DECL( prob_hi[0], prob_hi[1], prob_hi[2])});
 
         // This defines a Geometry object
         geom.define(domain,&real_box,CoordSys::cartesian,is_periodic.data());
@@ -151,12 +202,6 @@ void main_main ()
     // Compute the time step
     // Implicit time step is imFactor*(explicit time step)
     const Real* dx = geom.CellSize();
-    Real cfl = 0.9;
-    Real coeff = AMREX_D_TERM(   1./(dx[0]*dx[0]),
-                               + 1./(dx[1]*dx[1]),
-                               + 1./(dx[2]*dx[2]) );
-    const int imFactor = pow(10, AMREX_SPACEDIM-1);
-    Real dt = imFactor*cfl/(2.0*coeff);
 
     // Write a plotfile of the initial data if plot_int > 0 (plot_int was defined in the inputs file)
     if (plot_int > 0)
