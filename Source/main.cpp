@@ -25,6 +25,9 @@ void main_main ()
 
     // AMREX_SPACEDIM: number of dimensions
     int max_grid_size, nsteps, plot_int;
+    // time step
+    Real dt;
+
     Vector<int> bc_lo(AMREX_SPACEDIM,0);
     Vector<int> bc_hi(AMREX_SPACEDIM,0);
 
@@ -69,6 +72,9 @@ void main_main ()
         nsteps = 10;
         pp.query("nsteps",nsteps);
 
+        // time step
+        pp.get("dt",dt);
+        
         // read in BC; see Src/Base/AMReX_BC_TYPES.H for supported types
         pp.queryarr("bc_lo", bc_lo);
         pp.queryarr("bc_hi", bc_hi);
