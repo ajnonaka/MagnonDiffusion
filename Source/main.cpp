@@ -74,7 +74,19 @@ void main_main ()
 
         // time step
         pp.get("dt",dt);
-        
+
+        amrex::Vector<amrex::Real> temp(AMREX_SPACEDIM);
+        if (pp.queryarr("prob_lo",temp)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                prob_lo[i] = temp[i];
+            }
+        }
+        if (pp.queryarr("prob_hi",temp)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                prob_hi[i] = temp[i];
+            }
+        }
+
         // read in BC; see Src/Base/AMReX_BC_TYPES.H for supported types
         pp.queryarr("bc_lo", bc_lo);
         pp.queryarr("bc_hi", bc_hi);
@@ -173,16 +185,6 @@ void main_main ()
 
         }
     }
-
-    // Compute the time step
-    // Implicit time step is imFactor*(explicit time step)
-    const Real* dx = geom.CellSize();
-    Real cfl = 0.9;
-    Real coeff = AMREX_D_TERM(   1./(dx[0]*dx[0]),
-                               + 1./(dx[1]*dx[1]),
-                               + 1./(dx[2]*dx[2]) );
-    const int imFactor = pow(10, AMREX_SPACEDIM-1);
-    Real dt = imFactor*cfl/(2.0*coeff);
 
     // Write a plotfile of the initial data if plot_int > 0 (plot_int was defined in the inputs file)
     if (plot_int > 0)
