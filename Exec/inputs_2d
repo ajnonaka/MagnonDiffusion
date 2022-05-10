@@ -7,5 +7,6 @@ max_grid_size = 64
 # 0 = periodic
 # 2 = homogeneous Neumann (zero flux)
 # 3 = Dirichlet (prescribed value)
+# 6 = Robin (a*phi+b*d(phi)/dn = f)
 bc_lo = 0 2
 bc_hi = 0 2
