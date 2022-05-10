@@ -113,9 +113,9 @@ void main_main ()
         // Break up boxarray "ba" into chunks no larger than "max_grid_size" along a direction
         ba.maxSize(max_grid_size);
 
-       // This defines the physical box, [-1,1] in each direction.
-        RealBox real_box({AMREX_D_DECL(-1.0,-1.0,-1.0)},
-                         {AMREX_D_DECL( 1.0, 1.0, 1.0)});
+        // This defines the physical box in each direction.
+        RealBox real_box({AMREX_D_DECL( prob_lo[0], prob_lo[1], prob_lo[2])},
+                         {AMREX_D_DECL( prob_hi[0], prob_hi[1], prob_hi[2])});
 
         // This defines a Geometry object
         geom.define(domain,&real_box,CoordSys::cartesian,is_periodic.data());
@@ -200,7 +200,9 @@ void main_main ()
         MultiFab::Copy(phi_old, phi_new, 0, 0, 1, 0);
 
         // new_phi = (I-dt)^{-1} * old_phi + dt
-        advance(phi_old, phi_new, dt, geom, ba, dm, bc);
+        // magnon diffusion case has updated alpha and beta coeffs
+        // (a * alpha * I - b del*beta del ) phi = RHS
+        advance(phi_old, phi_new, dt, D_const, tau_p, geom, ba, dm, bc); 
         time = time + dt;
 
         // Tell the I/O Processor to write out which step we're doing

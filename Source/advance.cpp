@@ -12,6 +12,8 @@ using namespace amrex;
 void advance (MultiFab& phi_old,
               MultiFab& phi_new,
               Real dt,
+              Real D_const,
+              Real tau_p,
               const Geometry& geom,
               const BoxArray& grids,
               const DistributionMapping& dmap,
@@ -100,7 +102,7 @@ void advance (MultiFab& phi_old,
     MultiFab acoef(grids, dmap, 1, 0);
 
     // fill in the acoef MultiFab and load this into the solver
-    acoef.setVal(1.0);
+    acoef.setVal(1.0 + dt/tau_p); // changed for the magnon diffusion equation 
     mlabec.setACoeffs(0, acoef);
 
     // bcoef lives on faces so we make an array of face-centered MultiFabs
@@ -111,7 +113,7 @@ void advance (MultiFab& phi_old,
         const BoxArray& ba = amrex::convert(acoef.boxArray(),
                                             IntVect::TheDimensionVector(idim));
         face_bcoef[idim].define(ba, acoef.DistributionMap(), 1, 0);
-        face_bcoef[idim].setVal(dt);
+        face_bcoef[idim].setVal(dt * D_const); // changed for the magnon diffusion equation
     }
     mlabec.setBCoeffs(0, amrex::GetArrOfConstPtrs(face_bcoef));
 
