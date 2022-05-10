@@ -11,6 +11,8 @@ void main_main ();
 void advance (amrex::MultiFab& phi_old,
               amrex::MultiFab& phi_new,
               amrex::Real dt,
+              amrex::Real D_const,
+              amrex::Real tau_p,
               const amrex::Geometry& geom,
               const amrex::BoxArray& grids,
               const amrex::DistributionMapping& dmap,
