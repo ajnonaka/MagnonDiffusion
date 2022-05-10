@@ -16,8 +16,6 @@ void InitializeMagnonDiffusionNamespace ();
 
 void advance (amrex::MultiFab& phi_old,
               amrex::MultiFab& phi_new,
-              const amrex::Geometry& geom,
-              const amrex::BoxArray& grids,
-              const amrex::DistributionMapping& dmap);
+              const amrex::Geometry& geom);
 
 #endif

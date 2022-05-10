@@ -91,7 +91,7 @@ void main_main ()
         // new_phi = (I-dt)^{-1} * old_phi + dt
         // magnon diffusion case has updated alpha and beta coeffs
         // (a * alpha * I - b del*beta del ) phi = RHS
-        advance(phi_old, phi_new, geom, ba, dm);
+        advance(phi_old, phi_new, geom);
         time = time + dt;
 
         // Tell the I/O Processor to write out which step we're doing
