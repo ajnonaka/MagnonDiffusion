@@ -75,44 +75,6 @@ void main_main ()
     // Initialize phi_new here
     phi_new.setVal(0.);
 
-    // Set up BCRec; see Src/Base/AMReX_BC_TYPES.H for supported types
-    Vector<BCRec> bc(phi_old.nComp());
-    for (int n = 0; n < phi_old.nComp(); ++n)
-    {
-        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim)
-        {
-
-            // lo-side BCs
-            if (bc_lo[idim] == BCType::int_dir) {
-                bc[n].setLo(idim, BCType::int_dir);  // periodic uses "internal Dirichlet"
-            }
-            else if (bc_lo[idim] == BCType::foextrap) {
-                bc[n].setLo(idim, BCType::foextrap); // first-order extrapolation
-            }
-            else if (bc_lo[idim] == BCType::ext_dir) {
-                bc[n].setLo(idim, BCType::ext_dir);  // external Dirichlet
-            }
-            else {
-                amrex::Abort("Invalid bc_lo");
-            }
-
-            // hi-side BCs
-            if (bc_hi[idim] == BCType::int_dir) {
-                bc[n].setHi(idim, BCType::int_dir);  // periodic uses "internal Dirichlet"
-            }
-            else if (bc_hi[idim] == BCType::foextrap) {
-                bc[n].setHi(idim, BCType::foextrap); // first-order extrapolation (homogeneous Neumann)
-            }
-            else if (bc_hi[idim] == BCType::ext_dir) {
-                bc[n].setHi(idim, BCType::ext_dir);  // external Dirichlet
-            }
-            else {
-                amrex::Abort("Invalid bc_hi");
-            }
-
-        }
-    }
-
     // Write a plotfile of the initial data if plot_int > 0 (plot_int was defined in the inputs file)
     if (plot_int > 0)
     {
@@ -129,7 +91,7 @@ void main_main ()
         // new_phi = (I-dt)^{-1} * old_phi + dt
         // magnon diffusion case has updated alpha and beta coeffs
         // (a * alpha * I - b del*beta del ) phi = RHS
-        advance(phi_old, phi_new, geom, ba, dm, bc); 
+        advance(phi_old, phi_new, geom, ba, dm);
         time = time + dt;
 
         // Tell the I/O Processor to write out which step we're doing

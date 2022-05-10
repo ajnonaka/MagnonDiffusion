@@ -3,7 +3,8 @@
 
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_BCRec.H>
+#include <AMReX_BC_TYPES.H>
+#include <AMReX_LO_BCTYPES.H>
 
 #include "MagnonDiffusion_namespace.H"
 
@@ -17,7 +18,6 @@ void advance (amrex::MultiFab& phi_old,
               amrex::MultiFab& phi_new,
               const amrex::Geometry& geom,
               const amrex::BoxArray& grids,
-              const amrex::DistributionMapping& dmap,
-              const amrex::Vector<amrex::BCRec>& bc);
+              const amrex::DistributionMapping& dmap);
 
 #endif

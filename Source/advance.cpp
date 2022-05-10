@@ -1,7 +1,6 @@
-#include <AMReX_BCUtil.H>
+#include <AMReX_LO_BCTYPES.H>
 #include <AMReX_MLMG.H>
 #include <AMReX_MLABecLaplacian.H>
-#include <AMReX_MultiFabUtil.H>
 
 #include "MagnonDiffusion.H"
 
@@ -12,8 +11,7 @@ void advance (MultiFab& phi_old,
               MultiFab& phi_new,
               const Geometry& geom,
               const BoxArray& grids,
-              const DistributionMapping& dmap,
-              const Vector<BCRec>& bc)
+              const DistributionMapping& dmap)
 {
     /*
       We use an MLABecLaplacian operator:
@@ -31,7 +29,9 @@ void advance (MultiFab& phi_old,
     phi_old.FillBoundary(geom.periodicity());
 
     // Fill non-periodic physical boundaries
-    FillDomainBoundary(phi_old, geom, bc);
+    //
+    //
+    //
 
     // assorment of solver and parallization options and parameters
     // see AMReX_MLLinOp.H for the defaults, accessors, and mutators
@@ -46,36 +46,42 @@ void advance (MultiFab& phi_old,
 
     // build array of boundary conditions needed by MLABecLaplacian
     // see Src/Boundary/AMReX_LO_BCTYPES.H for supported types
-    std::array<LinOpBCType,AMREX_SPACEDIM> bc_lo;
-    std::array<LinOpBCType,AMREX_SPACEDIM> bc_hi;
+    std::array<LinOpBCType,AMREX_SPACEDIM> linop_bc_lo;
+    std::array<LinOpBCType,AMREX_SPACEDIM> linop_bc_hi;
 
     for (int n = 0; n < phi_old.nComp(); ++n)
     {
         for (int idim = 0; idim < AMREX_SPACEDIM; ++idim)
         {
             // lo-side BCs
-            if (bc[n].lo(idim) == BCType::int_dir) {
-                bc_lo[idim] = LinOpBCType::Periodic;
+            if (bc_lo[idim] == BCType::int_dir) {
+                linop_bc_lo[idim] = LinOpBCType::Periodic;
             }
-            else if (bc[n].lo(idim) == BCType::foextrap) {
-                bc_lo[idim] = LinOpBCType::Neumann;
+            else if (bc_lo[idim] == BCType::foextrap) {
+                linop_bc_lo[idim] = LinOpBCType::Neumann;
             }
-            else if (bc[n].lo(idim) == BCType::ext_dir) {
-                bc_lo[idim] = LinOpBCType::Dirichlet;
+            else if (bc_lo[idim] == BCType::ext_dir) {
+                linop_bc_lo[idim] = LinOpBCType::Dirichlet;
+            }
+            else if (bc_lo[idim] == BCType::robin) {
+                linop_bc_lo[idim] = LinOpBCType::Robin;
             }
             else {
                 amrex::Abort("Invalid bc_lo");
             }
 
             // hi-side BCs
-            if (bc[n].hi(idim) == BCType::int_dir) {
-                bc_hi[idim] = LinOpBCType::Periodic;
+            if (bc_hi[idim] == BCType::int_dir) {
+                linop_bc_hi[idim] = LinOpBCType::Periodic;
             }
-            else if (bc[n].hi(idim) == BCType::foextrap) {
-                bc_hi[idim] = LinOpBCType::Neumann;
+            else if (bc_hi[idim] == BCType::foextrap) {
+                linop_bc_hi[idim] = LinOpBCType::Neumann;
             }
-            else if (bc[n].hi(idim) == BCType::ext_dir) {
-                bc_hi[idim] = LinOpBCType::Dirichlet;
+            else if (bc_hi[idim] == BCType::ext_dir) {
+                linop_bc_hi[idim] = LinOpBCType::Dirichlet;
+            }
+            else if (bc_hi[idim] == BCType::robin) {
+                linop_bc_hi[idim] = LinOpBCType::Robin;
             }
             else {
                 amrex::Abort("Invalid bc_hi");
@@ -84,7 +90,7 @@ void advance (MultiFab& phi_old,
     }
 
     // tell the solver what the domain boundary conditions are
-    mlabec.setDomainBC(bc_lo, bc_hi);
+    mlabec.setDomainBC(linop_bc_lo, linop_bc_hi);
 
     // set the boundary conditions
     mlabec.setLevelBC(0, &phi_old);
