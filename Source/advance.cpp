@@ -89,9 +89,7 @@ void advance (MultiFab& phi_old,
     phi_old.FillBoundary(geom.periodicity());
 
     // Fill phi ghost cells for Dirichlet or Neumann boundary conditions
-    //
-    //
-    //
+    FillBoundaryPhysical(phi_old, geom);
 
     if (is_any_robin) {
 
@@ -100,9 +98,7 @@ void advance (MultiFab& phi_old,
         MultiFab robin_f(ba,dmap,1,1);
 
         // Fill phi ghost cells for Robin boundary conditions
-        //
-        //
-        //
+        FillBoundaryRobin(robin_a, robin_b, robin_f, geom);
 
         // set the boundary conditions
         mlabec.setLevelBC(0, &phi_old, &robin_a, &robin_b, &robin_f);

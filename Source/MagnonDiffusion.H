@@ -9,13 +9,21 @@
 #include "MagnonDiffusion_namespace.H"
 
 using namespace MagnonDiffusion;
+using namespace amrex;
 
 void main_main ();
 
 void InitializeMagnonDiffusionNamespace ();
 
-void advance (amrex::MultiFab& phi_old,
-              amrex::MultiFab& phi_new,
-              const amrex::Geometry& geom);
+void advance (MultiFab& phi_old,
+              MultiFab& phi_new,
+              const Geometry& geom);
+
+void FillBoundaryPhysical (MultiFab& phi, const Geometry& geom);
+
+void FillBoundaryRobin (MultiFab& robin_a,
+                        MultiFab& robin_b,
+                        MultiFab& robin_f,
+                        const Geometry& geom);
 
 #endif

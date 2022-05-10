@@ -124,3 +124,207 @@ void InitializeMagnonDiffusionNamespace() {
     pp.getarr("bc_lo", bc_lo);
     pp.getarr("bc_hi", bc_hi);
 }
+
+void FillBoundaryPhysical (MultiFab& phi, const Geometry& geom) {
+
+    // Physical Domain
+    Box dom(geom.Domain());
+    
+    for (MFIter mfi(phi, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        // one ghost cell
+        Box bx = mfi.growntilebox(1);
+
+        const Array4<Real>& data = phi.array(mfi);
+
+        // x ghost cells
+        int lo = dom.smallEnd(0);
+        int hi = dom.bigEnd(0);
+        
+        if (bx.smallEnd(0) < lo) {
+            if (bc_lo[0] == BCType::foextrap || bc_lo[0] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (i<lo) {
+                        data(i,j,k) = bc_lo_f[0];
+                    }
+                });
+            }
+        }
+
+        if (bx.bigEnd(0) > hi) {
+            if (bc_hi[0] == BCType::foextrap || bc_hi[0] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (i>hi) {
+                        data(i,j,k) = bc_hi_f[0];
+                    }
+                });
+            }
+        }
+        
+        // y ghost cells
+        lo = dom.smallEnd(1);
+        hi = dom.bigEnd(1);
+        
+        if (bx.smallEnd(1) < lo) {
+            if (bc_lo[1] == BCType::foextrap || bc_lo[1] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (j<lo) {
+                        data(i,j,k) = bc_lo_f[1];
+                    }
+                });
+            }
+        }
+
+        if (bx.bigEnd(1) > hi) {
+            if (bc_hi[1] == BCType::foextrap || bc_hi[1] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (j>hi) {
+                        data(i,j,k) = bc_hi_f[1];
+                    }
+                });
+            }
+        }
+        
+        // z ghost cells
+        lo = dom.smallEnd(2);
+        hi = dom.bigEnd(2);
+        
+        if (bx.smallEnd(2) < lo) {
+            if (bc_lo[2] == BCType::foextrap || bc_lo[2] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (k<lo) {
+                        data(i,j,k) = bc_lo_f[2];
+                    }
+                });
+            }
+        }
+
+        if (bx.bigEnd(2) > hi) {
+            if (bc_hi[2] == BCType::foextrap || bc_hi[2] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (k>hi) {
+                        data(i,j,k) = bc_hi_f[2];
+                    }
+                });
+            }
+        }
+        
+    } // end MFIter
+}
+
+void FillBoundaryRobin (MultiFab& robin_a,
+                        MultiFab& robin_b,
+                        MultiFab& robin_f,
+                        const Geometry& geom) {
+
+    // Physical Domain
+    Box dom(geom.Domain());
+    
+    for (MFIter mfi(robin_a, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        // one ghost cell
+        Box bx = mfi.growntilebox(1);
+
+        const Array4<Real>& data_a = robin_a.array(mfi);
+        const Array4<Real>& data_b = robin_b.array(mfi);
+        const Array4<Real>& data_f = robin_f.array(mfi);
+
+        // x ghost cells
+        int lo = dom.smallEnd(0);
+        int hi = dom.bigEnd(0);
+        
+        if (bx.smallEnd(0) < lo) {
+            if (bc_lo[0] == 6) { // 6 = Robin
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (i<lo) {
+                        data_a(i,j,k) = bc_lo_a[0];
+                        data_b(i,j,k) = bc_lo_b[0];
+                        data_f(i,j,k) = bc_lo_f[0];
+                    }
+                });
+            }
+        }
+
+        if (bx.bigEnd(0) > hi) {
+            if (bc_hi[0] == 6) { // 6 = Robin
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (i>hi) {
+                        data_a(i,j,k) = bc_hi_a[0];
+                        data_b(i,j,k) = bc_hi_b[0];
+                        data_f(i,j,k) = bc_hi_f[0];
+                    }
+                });
+            }
+        }
+        
+        // y ghost cells
+        lo = dom.smallEnd(1);
+        hi = dom.bigEnd(1);
+        
+        if (bx.smallEnd(1) < lo) {
+            if (bc_lo[1] == 6) { // 6 = Robin
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (j<lo) {
+                        data_a(i,j,k) = bc_lo_a[1];
+                        data_b(i,j,k) = bc_lo_b[1];
+                        data_f(i,j,k) = bc_lo_f[1];
+                    }
+                });
+            }
+        }
+
+        if (bx.bigEnd(1) > hi) {
+            if (bc_hi[1] == 6) { // 6 = Robin
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (j>hi) {
+                        data_a(i,j,k) = bc_hi_a[1];
+                        data_b(i,j,k) = bc_hi_b[1];
+                        data_f(i,j,k) = bc_hi_f[1];
+                    }
+                });
+            }
+        }
+        
+        // z ghost cells
+        lo = dom.smallEnd(2);
+        hi = dom.bigEnd(2);
+        
+        if (bx.smallEnd(2) < lo) {
+            if (bc_lo[2] == 6) { // 6 = Robin
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (k<lo) {
+                        data_a(i,j,k) = bc_lo_a[2];
+                        data_b(i,j,k) = bc_lo_b[2];
+                        data_f(i,j,k) = bc_lo_f[2];
+                    }
+                });
+            }
+        }
+
+        if (bx.bigEnd(2) > hi) {
+            if (bc_hi[2] == 6) { // 6 = Robin
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (k>hi) {
+                        data_a(i,j,k) = bc_hi_a[2];
+                        data_b(i,j,k) = bc_hi_b[2];
+                        data_f(i,j,k) = bc_hi_f[2];
+                    }
+                });
+            }
+        }
+        
+    } // end MFIter
+
+}
