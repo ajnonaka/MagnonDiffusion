@@ -36,6 +36,7 @@ void main_main ()
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_hi; // physical hi coordinate
 
     // Robin BC parameters
+    // BC equation: a*phi+b*d(phi)/dn = f
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> robin_bc_lo_a; // robin BC coeffs. 
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> robin_bc_hi_a; // robin BC coeffs. 
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> robin_bc_lo_b; // robin BC coeffs. 
@@ -60,6 +61,10 @@ void main_main ()
             n_cell[i] = temp_int[i];
         }
         
+        // parse in material properties
+        pp.get("D_const", D_const);
+        pp.get("tau_p", tau_p);
+
         // The domain is broken into boxes of size max_grid_size
         pp.get("max_grid_size",max_grid_size);
 
@@ -68,9 +73,8 @@ void main_main ()
         plot_int = -1;
         pp.query("plot_int",plot_int);
 
-        // Default nsteps to 0, allow us to set it to something else in the inputs file
-        nsteps = 10;
-        pp.query("nsteps",nsteps);
+        // nsteps must be specified in the inputs file
+        pp.get("nsteps",nsteps);
 
         // time step
         pp.get("dt",dt);
@@ -84,6 +88,36 @@ void main_main ()
         if (pp.queryarr("prob_hi",temp)) {
             for (int i=0; i<AMREX_SPACEDIM; ++i) {
                 prob_hi[i] = temp[i];
+            }
+        }
+        if (pp.queryarr("robin_bc_lo_a",temp)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                robin_bc_lo_a[i] = temp[i];
+            }
+        }
+        if (pp.queryarr("robin_bc_hi_a",temp)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                robin_bc_hi_a[i] = temp[i];
+            }
+        }
+        if (pp.queryarr("robin_bc_lo_b",temp)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                robin_bc_lo_b[i] = temp[i];
+            }
+        }
+        if (pp.queryarr("robin_bc_hi_b",temp)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                robin_bc_hi_b[i] = temp[i];
+            }
+        }
+        if (pp.queryarr("robin_bc_lo_f",temp)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                robin_bc_lo_f[i] = temp[i];
+            }
+        }
+        if (pp.queryarr("robin_bc_hi_f",temp)) {
+            for (int i=0; i<AMREX_SPACEDIM; ++i) {
+                robin_bc_hi_f[i] = temp[i];
             }
         }
 
