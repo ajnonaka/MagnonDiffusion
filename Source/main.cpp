@@ -35,14 +35,18 @@ void main_main ()
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_lo; // physical lo coordinate
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_hi; // physical hi coordinate
 
+    // General BC parameters for Dirichlet, Neumann, or Robin
+    // Dirichlet: phi = f
+    // Neumann: d(phi)/dn = f
+    // Robin: a*phi+b*d(phi)/dn = f
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> bc_lo_f; // BC rhs.
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> bc_hi_f; // BC rhs.
+    
     // Robin BC parameters
-    // BC equation: a*phi+b*d(phi)/dn = f
-    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> robin_bc_lo_a; // robin BC coeffs. 
-    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> robin_bc_hi_a; // robin BC coeffs. 
-    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> robin_bc_lo_b; // robin BC coeffs. 
-    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> robin_bc_hi_b; // robin BC coeffs. 
-    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> robin_bc_lo_f; // robin BC coeffs. 
-    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> robin_bc_hi_f; // robin BC coeffs. 
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> bc_lo_a; // robin BC coeffs. 
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> bc_hi_a; // robin BC coeffs. 
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> bc_lo_b; // robin BC coeffs. 
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> bc_hi_b; // robin BC coeffs. 
 
     // magnon diffusion parameters
     Real D_const, tau_p;
@@ -52,7 +56,8 @@ void main_main ()
         // ParmParse is way of reading inputs from the inputs file
         ParmParse pp;
 
-        amrex::Vector<int> temp_int(AMREX_SPACEDIM); // temperary for parsing
+        amrex::Vector<int> temp_int(AMREX_SPACEDIM);     // temporary for parsing
+        amrex::Vector<amrex::Real> temp(AMREX_SPACEDIM); // temporary for parsing
 
         // We need to get n_cell from the inputs file - this is the number of cells on each side of
         //   a square (or cubic) domain.
@@ -79,51 +84,61 @@ void main_main ()
         // time step
         pp.get("dt",dt);
 
-        amrex::Vector<amrex::Real> temp(AMREX_SPACEDIM);
-        if (pp.queryarr("prob_lo",temp)) {
+        pp.getarr("prob_lo",temp);
+        for (int i=0; i<AMREX_SPACEDIM; ++i) {
+            prob_lo[i] = temp[i];
+        }
+
+        pp.getarr("prob_hi",temp);
+        for (int i=0; i<AMREX_SPACEDIM; ++i) {
+            prob_hi[i] = temp[i];
+        }
+
+        // default values for bc parameters
+        for (int i=0; i<AMREX_SPACEDIM; ++i) {
+            bc_lo_f[i] = 0.;
+            bc_hi_f[i] = 0.;
+            bc_lo_a[i] = 0.;
+            bc_hi_a[i] = 0.;
+            bc_lo_b[i] = 0.;
+            bc_hi_b[i] = 0.;
+        }
+
+        // read in bc parameters
+        if (pp.queryarr("bc_lo_f",temp)) {
             for (int i=0; i<AMREX_SPACEDIM; ++i) {
-                prob_lo[i] = temp[i];
+                bc_lo_f[i] = temp[i];
             }
         }
-        if (pp.queryarr("prob_hi",temp)) {
+        if (pp.queryarr("bc_hi_f",temp)) {
             for (int i=0; i<AMREX_SPACEDIM; ++i) {
-                prob_hi[i] = temp[i];
+                bc_hi_f[i] = temp[i];
             }
         }
-        if (pp.queryarr("robin_bc_lo_a",temp)) {
+        if (pp.queryarr("bc_lo_a",temp)) {
             for (int i=0; i<AMREX_SPACEDIM; ++i) {
-                robin_bc_lo_a[i] = temp[i];
+                bc_lo_a[i] = temp[i];
             }
         }
-        if (pp.queryarr("robin_bc_hi_a",temp)) {
+        if (pp.queryarr("bc_hi_a",temp)) {
             for (int i=0; i<AMREX_SPACEDIM; ++i) {
-                robin_bc_hi_a[i] = temp[i];
+                bc_hi_a[i] = temp[i];
             }
         }
-        if (pp.queryarr("robin_bc_lo_b",temp)) {
+        if (pp.queryarr("bc_lo_b",temp)) {
             for (int i=0; i<AMREX_SPACEDIM; ++i) {
-                robin_bc_lo_b[i] = temp[i];
+                bc_lo_b[i] = temp[i];
             }
         }
-        if (pp.queryarr("robin_bc_hi_b",temp)) {
+        if (pp.queryarr("bc_hi_b",temp)) {
             for (int i=0; i<AMREX_SPACEDIM; ++i) {
-                robin_bc_hi_b[i] = temp[i];
-            }
-        }
-        if (pp.queryarr("robin_bc_lo_f",temp)) {
-            for (int i=0; i<AMREX_SPACEDIM; ++i) {
-                robin_bc_lo_f[i] = temp[i];
-            }
-        }
-        if (pp.queryarr("robin_bc_hi_f",temp)) {
-            for (int i=0; i<AMREX_SPACEDIM; ++i) {
-                robin_bc_hi_f[i] = temp[i];
+                bc_hi_b[i] = temp[i];
             }
         }
 
         // read in BC; see Src/Base/AMReX_BC_TYPES.H for supported types
-        pp.queryarr("bc_lo", bc_lo);
-        pp.queryarr("bc_hi", bc_hi);
+        pp.getarr("bc_lo", bc_lo);
+        pp.getarr("bc_hi", bc_hi);
     }
 
     // determine whether boundary conditions are periodic
