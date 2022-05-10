@@ -4,7 +4,6 @@
 #include <AMReX_Print.H>
 
 #include "MagnonDiffusion.H"
-#include "MagnonDiffusion_namespace.H"
 
 using namespace amrex;
 using namespace MagnonDiffusion;
