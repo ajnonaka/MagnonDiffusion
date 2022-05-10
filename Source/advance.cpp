@@ -1,19 +1,15 @@
-
-#include "myfunc.H"
-#include "myfunc_F.H"
-
 #include <AMReX_BCUtil.H>
 #include <AMReX_MLMG.H>
 #include <AMReX_MLABecLaplacian.H>
 #include <AMReX_MultiFabUtil.H>
 
+#include "MagnonDiffusion.H"
+
 using namespace amrex;
+using namespace MagnonDiffusion;
 
 void advance (MultiFab& phi_old,
               MultiFab& phi_new,
-              Real dt,
-              Real D_const,
-              Real tau_p,
               const Geometry& geom,
               const BoxArray& grids,
               const DistributionMapping& dmap,

@@ -1,6 +1,3 @@
-CEXE_sources += main.cpp advance.cpp
+CEXE_sources += main.cpp advance.cpp MagnonDiffusion.cpp
 
-CEXE_headers += myfunc.H
-FEXE_headers += myfunc_F.H
-
-f90EXE_sources += init_phi_$(DIM)d.f90 
+CEXE_headers += MagnonDiffusion.H
