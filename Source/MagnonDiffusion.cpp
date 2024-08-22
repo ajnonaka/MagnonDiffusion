@@ -1,8 +1,162 @@
 #include "MagnonDiffusion.H"
 
+#include "Utils/SelectWarpXUtils/MsgLogger/MsgLogger.H"
+#include "Utils/SelectWarpXUtils/WarnManager.H"
+#include "Utils/SelectWarpXUtils/WarpXUtil.H"
+#include "Utils/SelectWarpXUtils/WarpXProfilerWrapper.H"
+#include "../../Utils/SelectWarpXUtils/WarpXUtil.H"
+     
+#include "Input/GeometryProperties/GeometryProperties.H"
+#include "Input/BoundaryConditions/BoundaryConditions.H"
+
 #include <AMReX_ParmParse.H>
 
-AMREX_GPU_MANAGED int MagnonDiffusion::max_grid_size;
+c_MagnonDiffusion* c_MagnonDiffusion::m_instance = nullptr;
+#ifdef AMREX_USE_GPU
+bool c_MagnonDiffusion::do_device_synchronize = true;
+#else
+bool c_MagnonDiffusion::do_device_synchronize = false;
+#endif
+
+
+c_MagnonDiffusion& c_MagnonDiffusion::GetInstance() 
+{    
+     
+    if (!m_instance) {
+        m_instance = new c_MagnonDiffusion();
+    }
+    return *m_instance;
+     
+}    
+     
+     
+void 
+c_MagnonDiffusion::ResetInstance ()
+{    
+    delete m_instance;
+    m_instance = nullptr;
+}    
+     
+
+c_MagnonDiffusion::c_MagnonDiffusion ()
+{
+#ifdef PRINT_NAME
+    amrex::Print() << "\n\n\t{************************c_MagnonDiffusion Constructor()************************\n";
+#endif
+    m_instance = this;
+    m_p_warn_manager = std::make_unique<Utils::WarnManager>();
+
+    ReadData();
+
+#ifdef PRINT_NAME
+    amrex::Print() << "\t}************************c_MagnonDiffusion Constructor()************************\n";
+#endif
+}
+
+c_MagnonDiffusion::~c_MagnonDiffusion ()
+{
+#ifdef PRINT_NAME
+    amrex::Print() << "\n\n\t{************************c_MagnonDiffusion Destructor()************************\n";
+#endif
+
+#ifdef PRINT_NAME
+    amrex::Print() << "\t}************************c_MagnonDiffusion Destructor()************************\n";
+#endif
+}
+
+void
+c_MagnonDiffusion::RecordWarning(
+        std::string topic,
+        std::string text,
+        WarnPriority priority)
+{
+    WARPX_PROFILE("WarpX::RecordWarning");
+
+    auto msg_priority = Utils::MsgLogger::Priority::high;
+    if(priority == WarnPriority::low)
+        msg_priority = Utils::MsgLogger::Priority::low;
+    else if(priority == WarnPriority::medium)
+        msg_priority = Utils::MsgLogger::Priority::medium;
+
+    if(m_always_warn_immediately){
+        amrex::Warning(
+            "!!!!!! WARNING: ["
+            + std::string(Utils::MsgLogger::PriorityToString(msg_priority))
+            + "][" + topic + "] " + text);
+    }
+
+#ifdef AMREX_USE_OMP
+    #pragma omp critical
+#endif
+    {
+        m_p_warn_manager->record_warning(topic, text, msg_priority);
+    }
+}
+
+void
+c_MagnonDiffusion::PrintLocalWarnings(const std::string& when)
+{
+
+    WARPX_PROFILE("WarpX::PrintLocalWarnings");
+    const std::string warn_string = m_p_warn_manager->print_local_warnings(when);
+    amrex::AllPrint() << warn_string;
+
+}
+
+
+void
+c_MagnonDiffusion::PrintGlobalWarnings(const std::string& when)
+{
+
+    WARPX_PROFILE("WarpX::PrintGlobalWarnings");
+    const std::string warn_string = m_p_warn_manager->print_global_warnings(when);
+    amrex::Print() << warn_string;
+
+}
+
+void
+c_MagnonDiffusion::ReadData ()
+{
+#ifdef PRINT_NAME
+    amrex::Print() << "\n\n\t\t{************************c_MagnonDiffusion::ReadData()************************\n";
+    amrex::Print() << "\t\tin file: " << __FILE__ << " at line: " << __LINE__ << "\n";
+#endif
+
+    m_timestep = 0;
+    m_total_steps = 1;
+    amrex::ParmParse pp;
+
+    #ifdef TIME_DEPENDENT
+        queryWithParser(pp,"timestep", m_timestep);
+        queryWithParser(pp,"steps", m_total_steps);
+    #endif
+
+    m_pGeometryProperties = std::make_unique<c_GeometryProperties>();
+
+    m_pBoundaryConditions = std::make_unique<c_BoundaryConditions>();
+
+#ifdef PRINT_NAME
+    amrex::Print() << "\t\t}************************c_MagnonDiffusion::ReadData()************************\n";
+#endif
+}
+
+
+void
+c_MagnonDiffusion::InitData ()
+{
+#ifdef PRINT_NAME
+    amrex::Print() << "\n\n\t{************************c_MagnonDiffusion::InitData()************************\n";
+    amrex::Print() << "\tin file: " << __FILE__ << " at line: " << __LINE__ << "\n";
+#endif
+
+    m_pGeometryProperties->InitData();
+
+#ifdef PRINT_NAME
+    amrex::Print() << "\t}************************c_MagnonDiffusion::InitData()************************\n";
+#endif
+}
+
+
 AMREX_GPU_MANAGED int MagnonDiffusion::nsteps;
 AMREX_GPU_MANAGED int MagnonDiffusion::plot_int;
     
@@ -11,10 +165,6 @@ AMREX_GPU_MANAGED amrex::Real MagnonDiffusion::dt;
 
 AMREX_GPU_MANAGED amrex::Vector<int> MagnonDiffusion::bc_lo;
 AMREX_GPU_MANAGED amrex::Vector<int> MagnonDiffusion::bc_hi;
-
-AMREX_GPU_MANAGED amrex::GpuArray<int, AMREX_SPACEDIM> MagnonDiffusion::n_cell; // number of cells in each direction
-AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::prob_lo; // physical lo coordinate
-AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::prob_hi; // physical hi coordinate
 
 // General BC parameters for Dirichlet, Neumann, or Robin
 // Dirichlet: phi = f
@@ -33,7 +183,8 @@ AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::
 AMREX_GPU_MANAGED amrex::Real MagnonDiffusion::D_const;
 AMREX_GPU_MANAGED amrex::Real MagnonDiffusion::tau_p;
 
-void InitializeMagnonDiffusionNamespace() {
+void InitializeMagnonDiffusionNamespace(const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_lo,
+                                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_hi) {
     
     // ParmParse is way of reading inputs from the inputs file
     amrex::ParmParse pp;
@@ -41,19 +192,9 @@ void InitializeMagnonDiffusionNamespace() {
     amrex::Vector<int> temp_int(AMREX_SPACEDIM);     // temporary for parsing
     amrex::Vector<amrex::Real> temp(AMREX_SPACEDIM); // temporary for parsing
 
-    // We need to get n_cell from the inputs file - this is the number of cells on each side of
-    //   a square (or cubic) domain.
-    pp.getarr("n_cell",temp_int);
-    for (int i=0; i<AMREX_SPACEDIM; ++i) {
-        n_cell[i] = temp_int[i];
-    }
-        
     // parse in material properties
     pp.get("D_const", D_const);
     pp.get("tau_p", tau_p);
-
-    // The domain is broken into boxes of size max_grid_size
-    pp.get("max_grid_size",max_grid_size);
 
     // Default plot_int to -1, allow us to set it to something else in the inputs file
     //  If plot_int < 0 then no plot files will be writtenq
@@ -65,16 +206,6 @@ void InitializeMagnonDiffusionNamespace() {
 
     // time step
     pp.get("dt",dt);
-
-    pp.getarr("prob_lo",temp);
-    for (int i=0; i<AMREX_SPACEDIM; ++i) {
-        prob_lo[i] = temp[i];
-    }
-
-    pp.getarr("prob_hi",temp);
-    for (int i=0; i<AMREX_SPACEDIM; ++i) {
-        prob_hi[i] = temp[i];
-    }
 
     // default values for bc parameters
     for (int i=0; i<AMREX_SPACEDIM; ++i) {

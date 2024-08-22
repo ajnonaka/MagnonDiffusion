@@ -1,6 +1,5 @@
 namespace MagnonDiffusion {
 
-    extern AMREX_GPU_MANAGED int max_grid_size;
     extern AMREX_GPU_MANAGED int nsteps;
     extern AMREX_GPU_MANAGED int plot_int;
     
@@ -9,10 +8,6 @@ namespace MagnonDiffusion {
 
     extern AMREX_GPU_MANAGED amrex::Vector<int> bc_lo;
     extern AMREX_GPU_MANAGED amrex::Vector<int> bc_hi;
-
-    extern AMREX_GPU_MANAGED amrex::GpuArray<int, AMREX_SPACEDIM> n_cell; // number of cells in each direction
-    extern AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_lo; // physical lo coordinate
-    extern AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_hi; // physical hi coordinate
 
     // General BC parameters for Dirichlet, Neumann, or Robin
     // Dirichlet: phi = f
