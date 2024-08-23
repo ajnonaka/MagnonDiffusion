@@ -5,7 +5,7 @@
 #include "MagnonDiffusion.H"
 
 #include "Input/GeometryProperties/GeometryProperties.H"
-#include "Utils/eXstaticUtils/eXstaticUtil.H"
+#include "Utils/FerroXUtils/FerroXUtil.H"
 
 using namespace amrex;
 using namespace MagnonDiffusion;
@@ -167,7 +167,7 @@ void advance (MultiFab& phi_old,
 #endif
 
     MultiFab cc_bcoef(ba, dmap, 1, 0);
-    eXstatic_MFab_Util::AverageCellCenteredMultiFabToCellFaces(cc_bcoef, face_bcoef);
+    FerroX_Util::AverageFaceCenteredMultiFabToCellCenters(face_bcoef, cc_bcoef);
 #ifdef AMREX_USE_EB
     int amrlev = 0;
     mlebabec.setEBDirichlet(amrlev, *rGprop.pEB->p_surf_soln_union, cc_bcoef);

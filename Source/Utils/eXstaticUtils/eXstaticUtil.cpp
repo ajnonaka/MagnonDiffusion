@@ -142,7 +142,6 @@ eXstatic_MFab_Util::AverageCellCenteredMultiFabToCellFaces(const amrex::MultiFab
 
 }
 
-
 #ifdef AMREX_USE_EB
 void
 eXstatic_MFab_Util::SpecifyValueOnlyOnCutcells(amrex::MultiFab& mf, amrex::Real const value) 

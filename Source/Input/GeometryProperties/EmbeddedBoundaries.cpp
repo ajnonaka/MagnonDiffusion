@@ -339,14 +339,12 @@ c_EmbeddedBoundaries::BuildGeometry(const amrex::Geometry* GEOM, const amrex::Bo
         {
             p_factory_union = std::move(m_p_factory[0]);
         }
-        else if(num_objects == 2 || num_objects == 3) 
+        else 
         {  
             auto name1 = vec_object_names[0];  
             auto geom_type1 = map_basic_objects_type[name1];  
             auto name2 = vec_object_names[1];
             auto geom_type2 = map_basic_objects_type[name2];  
-            auto name3 = vec_object_names[2];
-            auto geom_type3 = map_basic_objects_type[name3];  
 
 	    if(num_objects == 2)
 	    {
@@ -369,6 +367,9 @@ c_EmbeddedBoundaries::BuildGeometry(const amrex::Geometry* GEOM, const amrex::Bo
 	    } 
 	    if(num_objects == 3)
 	    {
+                auto name3 = vec_object_names[2];
+                auto geom_type3 = map_basic_objects_type[name3];
+  
                 if ( (map_object_type_enum[geom_type1] == s_ObjectType::object::box) &&
                           (map_object_type_enum[geom_type2] == s_ObjectType::object::box) &&
                           (map_object_type_enum[geom_type3] == s_ObjectType::object::box) )

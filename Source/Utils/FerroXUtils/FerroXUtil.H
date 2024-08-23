@@ -25,4 +25,5 @@ using namespace amrex;
 namespace FerroX_Util
 {
 void Contains_sc(MultiFab& MaterialMask, bool& contains_SC);
+void AverageFaceCenteredMultiFabToCellCenters(const std::array< amrex::MultiFab, AMREX_SPACEDIM >& face_arr,                                                                           amrex::MultiFab& cc_arr);
 }
