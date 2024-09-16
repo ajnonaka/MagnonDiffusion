@@ -12,6 +12,9 @@ using namespace MagnonDiffusion;
 
 void advance (MultiFab& phi_old,
               MultiFab& phi_new,
+              MultiFab& robin_hi_a,
+              MultiFab& robin_hi_b,
+              MultiFab& robin_hi_f,
               c_MagnonDiffusion& rMagnonDiffusion,
               const Geometry& geom)
 {
@@ -114,7 +117,7 @@ void advance (MultiFab& phi_old,
         MultiFab robin_f(ba,dmap,1,1);
 
         // Fill phi ghost cells for Robin boundary conditions
-        FillBoundaryRobin(robin_a, robin_b, robin_f, geom);
+        FillBoundaryRobin(robin_a, robin_b, robin_f, robin_hi_a, robin_hi_b, robin_hi_f, geom);
 
         // set the boundary conditions
         mlabec.setLevelBC(0, &phi_old, &robin_a, &robin_b, &robin_f);

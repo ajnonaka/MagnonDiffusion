@@ -1,5 +1,5 @@
 #include "MagnonDiffusion.H"
-
+#include "Utils/eXstaticUtils/eXstaticUtil.H"
 #include "Utils/SelectWarpXUtils/MsgLogger/MsgLogger.H"
 #include "Utils/SelectWarpXUtils/WarnManager.H"
 #include "Utils/SelectWarpXUtils/WarpXUtil.H"
@@ -352,6 +352,9 @@ void FillBoundaryPhysical (MultiFab& phi, const Geometry& geom) {
 void FillBoundaryRobin (MultiFab& robin_a,
                         MultiFab& robin_b,
                         MultiFab& robin_f,
+                        MultiFab& robin_hi_a,                       
+                        MultiFab& robin_hi_b,
+                        MultiFab& robin_hi_f,
                         const Geometry& geom) {
 
     // Physical Domain
@@ -365,6 +368,10 @@ void FillBoundaryRobin (MultiFab& robin_a,
         const Array4<Real>& data_a = robin_a.array(mfi);
         const Array4<Real>& data_b = robin_b.array(mfi);
         const Array4<Real>& data_f = robin_f.array(mfi);
+
+        const Array4<Real>& robin_bc_hi_a = robin_hi_a.array(mfi);
+        const Array4<Real>& robin_bc_hi_b = robin_hi_b.array(mfi);
+        const Array4<Real>& robin_bc_hi_f = robin_hi_f.array(mfi);
 
         // x ghost cells
         int lo = dom.smallEnd(0);
@@ -448,9 +455,9 @@ void FillBoundaryRobin (MultiFab& robin_a,
                 amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (k>hi) {
-                        data_a(i,j,k) = bc_hi_a[2];
-                        data_b(i,j,k) = bc_hi_b[2];
-                        data_f(i,j,k) = bc_hi_f[2];
+                        data_a(i,j,k) = robin_bc_hi_a(i,j,k);
+                        data_b(i,j,k) = robin_bc_hi_b(i,j,k);
+                        data_f(i,j,k) = robin_bc_hi_f(i,j,k);
                     }
                 });
             }
@@ -458,4 +465,93 @@ void FillBoundaryRobin (MultiFab& robin_a,
         
     } // end MFIter
 
+}
+
+void Initialize_Robin_Coefs(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& robin_a, MultiFab& robin_b, MultiFab& robin_f)
+{ 
+    auto& rGprop = rMagnonDiffusion.get_GeometryProperties();
+    Box const& domain = rGprop.geom.Domain();
+
+    const auto dx = rGprop.geom.CellSizeArray();
+    const auto& real_box = rGprop.geom.ProbDomain();
+    const auto iv_robin_a = robin_a.ixType().toIntVect();
+    const auto iv_robin_b = robin_b.ixType().toIntVect();
+    const auto iv_robin_f = robin_f.ixType().toIntVect();
+
+    for (MFIter mfi(robin_a, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const auto& robin_a_arr = robin_a.array(mfi);
+        const auto& robin_b_arr = robin_b.array(mfi);
+        const auto& robin_f_arr = robin_f.array(mfi);
+       
+        // one ghost cell 
+        Box bx = mfi.growntilebox(1);
+
+	std::string robin_a_s;
+	std::unique_ptr<amrex::Parser> robin_a_parser;
+        std::string m_str_robin_a_function;
+
+	std::string robin_b_s;
+	std::unique_ptr<amrex::Parser> robin_b_parser;
+        std::string m_str_robin_b_function;
+
+	std::string robin_f_s;
+	std::unique_ptr<amrex::Parser> robin_f_parser;
+        std::string m_str_robin_f_function;
+
+	ParmParse pp_robin_a("robin_a");
+
+
+	if (pp_robin_a.query("robin_a_function(x,y,z)", m_str_robin_a_function) ) {
+            robin_a_s = "parse_robin_a_function";
+        }
+
+        if (robin_a_s == "parse_robin_a_function") {
+            Store_parserString(pp_robin_a, "robin_a_function(x,y,z)", m_str_robin_a_function);
+            robin_a_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_robin_a_function,{"x","y","z"}));
+        }
+
+	ParmParse pp_robin_b("robin_b");
+
+
+	if (pp_robin_b.query("robin_b_function(x,y,z)", m_str_robin_b_function) ) {
+            robin_b_s = "parse_robin_b_function";
+        }
+
+        if (robin_b_s == "parse_robin_b_function") {
+            Store_parserString(pp_robin_b, "robin_b_function(x,y,z)", m_str_robin_b_function);
+            robin_b_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_robin_b_function,{"x","y","z"}));
+        }
+
+	ParmParse pp_robin_f("robin_f");
+
+
+	if (pp_robin_f.query("robin_f_function(x,y,z)", m_str_robin_f_function) ) {
+            robin_f_s = "parse_robin_f_function";
+        }
+
+        if (robin_f_s == "parse_robin_f_function") {
+            Store_parserString(pp_robin_f, "robin_f_function(x,y,z)", m_str_robin_f_function);
+            robin_f_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_robin_f_function,{"x","y","z"}));
+        }
+
+        const auto& macro_parser_robin_a = robin_a_parser->compile<3>();
+        const auto& macro_parser_robin_b = robin_b_parser->compile<3>();
+        const auto& macro_parser_robin_f = robin_f_parser->compile<3>();
+
+        amrex::ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_robin_a,macro_parser_robin_a,robin_a_arr);
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_robin_b, macro_parser_robin_b, robin_b_arr );
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_robin_f,macro_parser_robin_f,robin_f_arr);
+        });
+
+    }
+	robin_a.FillBoundary(geom.periodicity());
+	robin_b.FillBoundary(geom.periodicity());
+	robin_f.FillBoundary(geom.periodicity());
 }

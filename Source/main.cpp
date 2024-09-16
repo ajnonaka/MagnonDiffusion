@@ -57,16 +57,29 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
     MultiFab phi_old(ba, dm, Ncomp, Nghost);
     MultiFab phi_new(ba, dm, Ncomp, Nghost);
 
+    //MultiFabs to parse robin BC coefficients
+    MultiFab robin_hi_a(ba, dm, Ncomp, Nghost);
+    MultiFab robin_hi_b(ba, dm, Ncomp, Nghost);
+    MultiFab robin_hi_f(ba, dm, Ncomp, Nghost);
+    robin_hi_a.setVal(0.);
+    robin_hi_b.setVal(0.);
+    robin_hi_f.setVal(0.);
+
+    Initialize_Robin_Coefs(rMagnonDiffusion, geom, robin_hi_a, robin_hi_b, robin_hi_f);
+
 #ifdef AMREX_USE_EB
-    MultiFab Plt(ba, dm, 1, 0,  MFInfo(), *rGprop.pEB->p_factory_union);
+    MultiFab Plt(ba, dm, 4, 0,  MFInfo(), *rGprop.pEB->p_factory_union);
 #else    
-    MultiFab Plt(ba, dm, 1, 0);
+    MultiFab Plt(ba, dm, 4, 0);
 #endif
 
     // Initialize phi_new here
     phi_new.setVal(0.);
 
     MultiFab::Copy(Plt, phi_new, 0, 0, 1, 0);
+    MultiFab::Copy(Plt, robin_hi_a, 0, 1, 1, 0);
+    MultiFab::Copy(Plt, robin_hi_b, 0, 2, 1, 0);
+    MultiFab::Copy(Plt, robin_hi_f, 0, 3, 1, 0);
 
     // Write a plotfile of the initial data if plot_int > 0 (plot_int was defined in the inputs file)
     if (plot_int > 0)
@@ -74,9 +87,9 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
         int n = 0;
         const std::string& pltfile = amrex::Concatenate("plt",n,5);
 #ifdef AMREX_USE_EB
-        EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi"}, geom, time, 0);
+        EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f"}, geom, time, n);
 #else    
-        WriteSingleLevelPlotfile(pltfile, Plt, {"phi"}, geom, time, 0);
+        WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f"}, geom, time, n);
 #endif
     }
 
@@ -88,7 +101,7 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
         // new_phi = (I-dt)^{-1} * old_phi + dt
         // magnon diffusion case has updated alpha and beta coeffs
         // (a * alpha * I - b del*beta del ) phi = RHS
-        advance(phi_old, phi_new, rMagnonDiffusion, geom);
+        advance(phi_old, phi_new, robin_hi_a, robin_hi_b, robin_hi_f, rMagnonDiffusion, geom);
         time = time + dt;
 
         // Tell the I/O Processor to write out which step we're doing
@@ -101,9 +114,9 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
         {
             const std::string& pltfile = amrex::Concatenate("plt",n,5);
 #ifdef AMREX_USE_EB
-            EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi"}, geom, time, n);
+            EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f"}, geom, time, n);
 #else    
-            WriteSingleLevelPlotfile(pltfile, Plt, {"phi"}, geom, time, n);
+            WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f"}, geom, time, n);
 #endif
         }
     }

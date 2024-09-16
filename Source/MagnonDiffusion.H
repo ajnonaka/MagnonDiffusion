@@ -108,6 +108,9 @@ void InitializeMagnonDiffusionNamespace (const amrex::GpuArray<amrex::Real, AMRE
 
 void advance (MultiFab& phi_old,
               MultiFab& phi_new,
+              MultiFab& robin_hi_a,
+              MultiFab& robin_hi_b,
+              MultiFab& robin_hi_f,
               c_MagnonDiffusion& rMagnonDiffusion,
               const Geometry& geom);
 
@@ -116,6 +119,13 @@ void FillBoundaryPhysical (MultiFab& phi, const Geometry& geom);
 void FillBoundaryRobin (MultiFab& robin_a,
                         MultiFab& robin_b,
                         MultiFab& robin_f,
+                        MultiFab& robin_hi_a,
+                        MultiFab& robin_hi_b,
+                        MultiFab& robin_hi_f,
                         const Geometry& geom);
 
+void Initialize_Robin_Coefs(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, 
+                            MultiFab& robin_a,
+                            MultiFab& robin_b,
+                            MultiFab& robin_f);
 #endif
