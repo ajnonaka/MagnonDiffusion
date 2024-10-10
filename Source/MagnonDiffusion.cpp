@@ -555,3 +555,48 @@ void Initialize_Robin_Coefs(c_MagnonDiffusion& rMagnonDiffusion, const Geometry&
 	robin_b.FillBoundary(geom.periodicity());
 	robin_f.FillBoundary(geom.periodicity());
 }
+
+void Initialize_Spin_Relax_Len(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& spin_relax_len)
+{ 
+    auto& rGprop = rMagnonDiffusion.get_GeometryProperties();
+    Box const& domain = rGprop.geom.Domain();
+
+    const auto dx = rGprop.geom.CellSizeArray();
+    const auto& real_box = rGprop.geom.ProbDomain();
+    const auto iv_srl = spin_relax_len.ixType().toIntVect();
+
+    for (MFIter mfi(spin_relax_len, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const auto& spin_relax_len_arr = spin_relax_len.array(mfi);
+       
+        // one ghost cell 
+        Box bx = mfi.growntilebox(1);
+
+	std::string spin_relax_len_s;
+	std::unique_ptr<amrex::Parser> spin_relax_len_parser;
+        std::string m_str_spin_relax_len_function;
+
+	ParmParse pp_spin_relax_len("spin_relax_len");
+
+
+	if (pp_spin_relax_len.query("spin_relax_len_function(x,y,z)", m_str_spin_relax_len_function) ) {
+            spin_relax_len_s = "parse_spin_relax_len_function";
+        }
+
+        if (spin_relax_len_s == "parse_spin_relax_len_function") {
+            Store_parserString(pp_spin_relax_len, "spin_relax_len_function(x,y,z)", m_str_spin_relax_len_function);
+            spin_relax_len_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_spin_relax_len_function,{"x","y","z"}));
+        }
+
+        const auto& macro_parser_spin_relax_len = spin_relax_len_parser->compile<3>();
+
+        amrex::ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_srl,macro_parser_spin_relax_len,spin_relax_len_arr);
+        });
+
+    }
+	spin_relax_len.FillBoundary(geom.periodicity());
+}

@@ -1,0 +1,35 @@
+# Implicit time step is set to 10^{DIM-1} * (explicit time step)
+domain.n_cell = 64 64 32
+
+domain.max_grid_size = 64 64 32
+
+domain.prob_lo = -250.0e-9 -32.0e-9 0.0e-9
+domain.prob_hi =  250.0e-9  32.0e-9 100.0e-9
+
+domain.coord_sys = cartesian 
+
+nsteps = 10
+plot_int = 1
+
+dt = 1e-12
+
+# 0 = periodic
+# 2 = homogeneous Neumann (zero flux)
+# 3 = Dirichlet (prescribed value)
+# 6 = Robin (a*phi+b*d(phi)/dn = f)
+bc_lo = 2 2 2
+bc_hi = 2 2 6
+
+domain.is_periodic = 0 0 0
+
+tau_p = 1.0e-6
+D_const = 2.5e-5 # in unit of m^2/s
+
+####################################
+###### Robin Boundary Coefficients ######
+####################################
+
+robin_a.robin_a_function(x,y,z) = "1.0 * (x > -200.e-9) * (x < -100.e-9) + 1.0*( x > 100.0e-9) * (x < 200.0e-9)"
+robin_b.robin_b_function(x,y,z) = "1.0 - 1.0 * (x > -200.e-9) * (x < -100.e-9) - 1.0*( x > 100.0e-9) * (x < 200.0e-9)"
+robin_f.robin_f_function(x,y,z) = "4.0e-6 * (x > -200.e-9) * (x < -100.e-9) + 0.0*( x > 100.0e-9) * (x < 200.0e-9)"
+spin_relax_len.spin_relax_len_function(x,y,z) = "5.0e-6"

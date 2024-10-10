@@ -128,4 +128,6 @@ void Initialize_Robin_Coefs(c_MagnonDiffusion& rMagnonDiffusion, const Geometry&
                             MultiFab& robin_a,
                             MultiFab& robin_b,
                             MultiFab& robin_f);
+
+void Initialize_Spin_Relax_Len(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& spin_relax_len);
 #endif

@@ -61,16 +61,20 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
     MultiFab robin_hi_a(ba, dm, Ncomp, Nghost);
     MultiFab robin_hi_b(ba, dm, Ncomp, Nghost);
     MultiFab robin_hi_f(ba, dm, Ncomp, Nghost);
+    MultiFab spin_relax_len(ba, dm, Ncomp, Nghost);
     robin_hi_a.setVal(0.);
     robin_hi_b.setVal(0.);
     robin_hi_f.setVal(0.);
+    spin_relax_len.setVal(1.); //spin relaxation length. It is position dependent and  is parsed from the input file
 
     Initialize_Robin_Coefs(rMagnonDiffusion, geom, robin_hi_a, robin_hi_b, robin_hi_f);
+ 
+    Initialize_Spin_Relax_Len(rMagnonDiffusion, geom, spin_relax_len);
 
 #ifdef AMREX_USE_EB
-    MultiFab Plt(ba, dm, 4, 0,  MFInfo(), *rGprop.pEB->p_factory_union);
+    MultiFab Plt(ba, dm, 5, 0,  MFInfo(), *rGprop.pEB->p_factory_union);
 #else    
-    MultiFab Plt(ba, dm, 4, 0);
+    MultiFab Plt(ba, dm, 5, 0);
 #endif
 
     // Initialize phi_new here
@@ -80,6 +84,7 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
     MultiFab::Copy(Plt, robin_hi_a, 0, 1, 1, 0);
     MultiFab::Copy(Plt, robin_hi_b, 0, 2, 1, 0);
     MultiFab::Copy(Plt, robin_hi_f, 0, 3, 1, 0);
+    MultiFab::Copy(Plt, spin_relax_len, 0, 4, 1, 0);
 
     // Write a plotfile of the initial data if plot_int > 0 (plot_int was defined in the inputs file)
     if (plot_int > 0)
@@ -87,9 +92,9 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
         int n = 0;
         const std::string& pltfile = amrex::Concatenate("plt",n,5);
 #ifdef AMREX_USE_EB
-        EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f"}, geom, time, n);
+        EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f", "spin_relax_len"}, geom, time, n);
 #else    
-        WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f"}, geom, time, n);
+        WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f", "spin_relax_len"}, geom, time, n);
 #endif
     }
 
@@ -114,9 +119,9 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
         {
             const std::string& pltfile = amrex::Concatenate("plt",n,5);
 #ifdef AMREX_USE_EB
-            EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f"}, geom, time, n);
+            EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f","spin_relax_len"}, geom, time, n);
 #else    
-            WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f"}, geom, time, n);
+            WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f", "spin_relax_len"}, geom, time, n);
 #endif
         }
     }
