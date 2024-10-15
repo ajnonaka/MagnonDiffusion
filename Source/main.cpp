@@ -61,15 +61,18 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
     MultiFab robin_hi_a(ba, dm, Ncomp, Nghost);
     MultiFab robin_hi_b(ba, dm, Ncomp, Nghost);
     MultiFab robin_hi_f(ba, dm, Ncomp, Nghost);
-    MultiFab spin_relax_len(ba, dm, Ncomp, Nghost);
     robin_hi_a.setVal(0.);
     robin_hi_b.setVal(0.);
     robin_hi_f.setVal(0.);
-    spin_relax_len.setVal(1.); //spin relaxation length. It is position dependent and  is parsed from the input file
 
+    //MultiFabs to store position dependent D and tau parameters
+    MultiFab tau_mf(ba, dm, 1, 1); 
+    MultiFab D_mf(ba, dm, 1, 1); 
+    tau_mf.setVal(tau_p); //initialize with comstants. will be filled using parser
+    D_mf.setVal(D_const);
+    
     Initialize_Robin_Coefs(rMagnonDiffusion, geom, robin_hi_a, robin_hi_b, robin_hi_f);
- 
-    Initialize_Spin_Relax_Len(rMagnonDiffusion, geom, spin_relax_len);
+    initialize_mf_using_parser(rMagnonDiffusion, geom, tau_mf, D_mf); //read position dependent tau and and D using parser 
 
 #ifdef AMREX_USE_EB
     MultiFab Plt(ba, dm, 5, 0,  MFInfo(), *rGprop.pEB->p_factory_union);
@@ -84,7 +87,7 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
     MultiFab::Copy(Plt, robin_hi_a, 0, 1, 1, 0);
     MultiFab::Copy(Plt, robin_hi_b, 0, 2, 1, 0);
     MultiFab::Copy(Plt, robin_hi_f, 0, 3, 1, 0);
-    MultiFab::Copy(Plt, spin_relax_len, 0, 4, 1, 0);
+    MultiFab::Copy(Plt, D_mf, 0, 4, 1, 0);
 
     // Write a plotfile of the initial data if plot_int > 0 (plot_int was defined in the inputs file)
     if (plot_int > 0)
@@ -92,12 +95,15 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
         int n = 0;
         const std::string& pltfile = amrex::Concatenate("plt",n,5);
 #ifdef AMREX_USE_EB
-        EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f", "spin_relax_len"}, geom, time, n);
+        EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f", "tau"}, geom, time, n);
 #else    
-        WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f", "spin_relax_len"}, geom, time, n);
+        WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f", "tau"}, geom, time, n);
 #endif
     }
 
+    D_mf.mult(dt, 0, 1, 1); //We have D_const(i,j,k) in D_mf. Multiply it by dt to set D_mf = dt*D_const
+
+    fill_acoef(tau_mf); //modify tau to fill a coef. tau_mf(i,j,k) = 1 + dt/tau_mf(i,j,k)
 
     for (int n = 1; n <= nsteps; ++n)
     {
@@ -106,7 +112,7 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
         // new_phi = (I-dt)^{-1} * old_phi + dt
         // magnon diffusion case has updated alpha and beta coeffs
         // (a * alpha * I - b del*beta del ) phi = RHS
-        advance(phi_old, phi_new, robin_hi_a, robin_hi_b, robin_hi_f, rMagnonDiffusion, geom);
+        advance(phi_old, phi_new, robin_hi_a, robin_hi_b, robin_hi_f, tau_mf, D_mf, rMagnonDiffusion, geom);
         time = time + dt;
 
         // Tell the I/O Processor to write out which step we're doing
@@ -114,14 +120,15 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
 
         // Write a plotfile of the current data (plot_int was defined in the inputs file)
         MultiFab::Copy(Plt, phi_new, 0, 0, 1, 0);
+        MultiFab::Copy(Plt, D_mf, 0, 4, 1, 0);
 
         if (plot_int > 0 && n%plot_int == 0)
         {
             const std::string& pltfile = amrex::Concatenate("plt",n,5);
 #ifdef AMREX_USE_EB
-            EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f","spin_relax_len"}, geom, time, n);
+            EB_WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f","tau"}, geom, time, n);
 #else    
-            WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f", "spin_relax_len"}, geom, time, n);
+            WriteSingleLevelPlotfile(pltfile, Plt, {"phi", "robin_a", "robin_b", "robin_f", "tau"}, geom, time, n);
 #endif
         }
     }

@@ -6,6 +6,7 @@
 
 #include "Input/GeometryProperties/GeometryProperties.H"
 #include "Utils/FerroXUtils/FerroXUtil.H"
+#include "Utils/eXstaticUtils/eXstaticUtil.H"
 
 using namespace amrex;
 using namespace MagnonDiffusion;
@@ -15,6 +16,8 @@ void advance (MultiFab& phi_old,
               MultiFab& robin_hi_a,
               MultiFab& robin_hi_b,
               MultiFab& robin_hi_f,
+              MultiFab& tau_mf,
+              MultiFab& D_mf,
               c_MagnonDiffusion& rMagnonDiffusion,
               const Geometry& geom)
 {
@@ -145,9 +148,13 @@ void advance (MultiFab& phi_old,
 
     // Set up coefficient matrices
     MultiFab acoef(ba, dmap, 1, 0);
-
+    
     // fill in the acoef MultiFab and load this into the solver
-    acoef.setVal(1.0 + dt/tau_p); // changed for the magnon diffusion equation 
+    //acoef.setVal(1.0 + dt/tau_p); // changed for the magnon diffusion equation 
+    //fill_acoef(tau_mf, acoef); //acoef(i,j,k) = 1 + dt/tau_mf(i,j,k)
+
+    MultiFab::Copy(acoef, tau_mf, 0, 0, 1, 0);
+    
     mlabec.setACoeffs(0, acoef);
 #ifdef AMREX_USE_EB
     mlebabec.setACoeffs(0, acoef);
@@ -161,15 +168,18 @@ void advance (MultiFab& phi_old,
         const BoxArray& ba = amrex::convert(acoef.boxArray(),
                                             IntVect::TheDimensionVector(idim));
         face_bcoef[idim].define(ba, acoef.DistributionMap(), 1, 0);
-        face_bcoef[idim].setVal(dt * D_const); // changed for the magnon diffusion equation
+        //face_bcoef[idim].setVal(dt * D_const); // changed for the magnon diffusion equation
     }
+
+    eXstatic_MFab_Util::AverageCellCenteredMultiFabToCellFaces(D_mf, face_bcoef); //D_mf is cell-centerd. get it on faces
+
     mlabec.setBCoeffs(0, amrex::GetArrOfConstPtrs(face_bcoef));
 
 #ifdef AMREX_USE_EB
     mlebabec.setBCoeffs(0, amrex::GetArrOfConstPtrs(face_bcoef));
 #endif
 
-    MultiFab cc_bcoef(ba, dmap, 1, 0);
+    MultiFab cc_bcoef(ba, dmap, 1, 1);
     FerroX_Util::AverageFaceCenteredMultiFabToCellCenters(face_bcoef, cc_bcoef);
 #ifdef AMREX_USE_EB
     int amrlev = 0;

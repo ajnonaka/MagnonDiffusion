@@ -8,8 +8,8 @@ domain.prob_hi =  250.0e-9  32.0e-9 100.0e-9
 
 domain.coord_sys = cartesian 
 
-nsteps = 10
-plot_int = 1
+nsteps = 100
+plot_int = 10
 
 dt = 1e-12
 
@@ -32,4 +32,5 @@ D_const = 2.5e-5 # in unit of m^2/s
 robin_a.robin_a_function(x,y,z) = "1.0 * (x > -200.e-9) * (x < -100.e-9) + 1.0*( x > 100.0e-9) * (x < 200.0e-9)"
 robin_b.robin_b_function(x,y,z) = "1.0 - 1.0 * (x > -200.e-9) * (x < -100.e-9) - 1.0*( x > 100.0e-9) * (x < 200.0e-9)"
 robin_f.robin_f_function(x,y,z) = "4.0e-6 * (x > -200.e-9) * (x < -100.e-9) + 0.0*( x > 100.0e-9) * (x < 200.0e-9)"
-spin_relax_len.spin_relax_len_function(x,y,z) = "5.0e-6"
+mf_tau.tau_function(x,y,z) = "2.0e-6*( z < 40.0e-9) + 1.0e-6*(z >= 40.0e-9)"
+mf_D.D_function(x,y,z) = "5.0e-5*( z < 40.0e-9) + 2.5e-5*(z >= 40.0e-9)"

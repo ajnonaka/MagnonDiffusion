@@ -111,6 +111,8 @@ void advance (MultiFab& phi_old,
               MultiFab& robin_hi_a,
               MultiFab& robin_hi_b,
               MultiFab& robin_hi_f,
+              MultiFab& tau_mf,
+              MultiFab& D_mf,
               c_MagnonDiffusion& rMagnonDiffusion,
               const Geometry& geom);
 
@@ -129,5 +131,7 @@ void Initialize_Robin_Coefs(c_MagnonDiffusion& rMagnonDiffusion, const Geometry&
                             MultiFab& robin_b,
                             MultiFab& robin_f);
 
-void Initialize_Spin_Relax_Len(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& spin_relax_len);
+void initialize_mf_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& mf_tau, MultiFab& mf_D);
+
+void fill_acoef(MultiFab& mf_in);
 #endif

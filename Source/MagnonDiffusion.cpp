@@ -556,47 +556,84 @@ void Initialize_Robin_Coefs(c_MagnonDiffusion& rMagnonDiffusion, const Geometry&
 	robin_f.FillBoundary(geom.periodicity());
 }
 
-void Initialize_Spin_Relax_Len(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& spin_relax_len)
+void initialize_mf_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& mf_tau, MultiFab& mf_D)
 { 
     auto& rGprop = rMagnonDiffusion.get_GeometryProperties();
     Box const& domain = rGprop.geom.Domain();
 
     const auto dx = rGprop.geom.CellSizeArray();
     const auto& real_box = rGprop.geom.ProbDomain();
-    const auto iv_srl = spin_relax_len.ixType().toIntVect();
+    const auto iv_srl = mf_tau.ixType().toIntVect();
 
-    for (MFIter mfi(spin_relax_len, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for (MFIter mfi(mf_tau, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const auto& spin_relax_len_arr = spin_relax_len.array(mfi);
+        const auto& tau_arr = mf_tau.array(mfi);
+        const auto& D_arr = mf_D.array(mfi);
        
         // one ghost cell 
-        Box bx = mfi.growntilebox(1);
+        Box bx = mfi.validbox();
 
-	std::string spin_relax_len_s;
-	std::unique_ptr<amrex::Parser> spin_relax_len_parser;
-        std::string m_str_spin_relax_len_function;
+	std::string tau_s;
+	std::unique_ptr<amrex::Parser> tau_parser;
+        std::string m_str_tau_function;
 
-	ParmParse pp_spin_relax_len("spin_relax_len");
+	ParmParse pp_tau("mf_tau");
 
-
-	if (pp_spin_relax_len.query("spin_relax_len_function(x,y,z)", m_str_spin_relax_len_function) ) {
-            spin_relax_len_s = "parse_spin_relax_len_function";
+	if (pp_tau.query("tau_function(x,y,z)", m_str_tau_function) ) {
+            tau_s = "parse_tau_function";
         }
 
-        if (spin_relax_len_s == "parse_spin_relax_len_function") {
-            Store_parserString(pp_spin_relax_len, "spin_relax_len_function(x,y,z)", m_str_spin_relax_len_function);
-            spin_relax_len_parser = std::make_unique<amrex::Parser>(
-                                     makeParser(m_str_spin_relax_len_function,{"x","y","z"}));
+        if (tau_s == "parse_tau_function") {
+            Store_parserString(pp_tau, "tau_function(x,y,z)", m_str_tau_function);
+            tau_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_tau_function,{"x","y","z"}));
         }
 
-        const auto& macro_parser_spin_relax_len = spin_relax_len_parser->compile<3>();
+	std::string D_s;
+	std::unique_ptr<amrex::Parser> D_parser;
+        std::string m_str_D_function;
+	
+        ParmParse pp_D("mf_D");
+
+	if (pp_D.query("D_function(x,y,z)", m_str_D_function) ) {
+            D_s = "parse_D_function";
+        }
+
+        if (D_s == "parse_D_function") {
+            Store_parserString(pp_D, "D_function(x,y,z)", m_str_D_function);
+            D_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_D_function,{"x","y","z"}));
+        }
+
+        const auto& macro_parser_tau = tau_parser->compile<3>();
+        const auto& macro_parser_D = D_parser->compile<3>();
 
         amrex::ParallelFor(bx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_srl,macro_parser_spin_relax_len,spin_relax_len_arr);
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_srl,macro_parser_tau,tau_arr);
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_srl,macro_parser_D,D_arr);
         });
 
     }
-	spin_relax_len.FillBoundary(geom.periodicity());
+	mf_tau.FillBoundary(geom.periodicity());
+	mf_D.FillBoundary(geom.periodicity());
+}
+
+void fill_acoef(MultiFab& mf_in){
+
+    // loop over boxes
+    for (MFIter mfi(mf_in); mfi.isValid(); ++mfi)
+    {   
+        const Box& bx = mfi.validbox();
+
+        const Array4<Real>& mf_in_arr = mf_in.array(mfi);
+
+
+        amrex::ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {   
+            mf_in_arr(i,j,k) = 1.0 + dt*(1.0/mf_in_arr(i,j,k));
+
+        }); 
+    }   
 }
