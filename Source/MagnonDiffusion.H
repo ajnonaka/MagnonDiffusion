@@ -106,17 +106,32 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion);
 void InitializeMagnonDiffusionNamespace (const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_lo,
                                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_hi);
 
-void advance (MultiFab& phi_old,
-              MultiFab& phi_new,
-              MultiFab& robin_hi_a,
-              MultiFab& robin_hi_b,
-              MultiFab& robin_hi_f,
-              MultiFab& tau_mf,
-              MultiFab& D_mf,
-              c_MagnonDiffusion& rMagnonDiffusion,
-              const Geometry& geom);
+void advance_mu (MultiFab& phi_old,
+                 MultiFab& phi_new,
+                 MultiFab& T_old,
+                 MultiFab& robin_hi_a,
+                 MultiFab& robin_hi_b,
+                 MultiFab& robin_hi_f,
+                 MultiFab& sigma,
+                 MultiFab& acoef_mf,
+                 MultiFab& bcoef_mf,
+                 c_MagnonDiffusion& rMagnonDiffusion,
+                 const Geometry& geom);
+
+void advance_T (MultiFab& T_old,
+                 MultiFab& T_new,
+                 MultiFab& phi_old,
+                 MultiFab& robin_hi_a,
+                 MultiFab& robin_hi_b,
+                 MultiFab& robin_hi_f,
+                 MultiFab& bcoef_mf,
+                 MultiFab& sigma,
+                 MultiFab& kappa,
+                 c_MagnonDiffusion& rMagnonDiffusion,
+                 const Geometry& geom);
 
 void FillBoundaryPhysical (MultiFab& phi, const Geometry& geom);
+void FillBoundaryPhysical_T (MultiFab& phi, const Geometry& geom);
 
 void FillBoundaryRobin (MultiFab& robin_a,
                         MultiFab& robin_b,
@@ -131,7 +146,19 @@ void Initialize_Robin_Coefs(c_MagnonDiffusion& rMagnonDiffusion, const Geometry&
                             MultiFab& robin_b,
                             MultiFab& robin_f);
 
-void initialize_mf_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& mf_tau, MultiFab& mf_D);
+void Initialize_Robin_Coefs_T(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, 
+                            MultiFab& robin_a,
+                            MultiFab& robin_b,
+                            MultiFab& robin_f);
 
-void fill_acoef(MultiFab& mf_in);
+void initialize_sigma_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& sigma);
+void initialize_lambda_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& lambda);
+void initialize_kappa_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& kappa);
+
+void fill_acoef(MultiFab& acoef_mf, MultiFab& sigma, MultiFab& lambda);
+void fill_bcoef(MultiFab& acoef_mf, MultiFab& sigma);
+
+void fill_rhs(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sigma, const Geometry& geom);
+void fill_rhs_T(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sigma, const Geometry& geom);
+
 #endif

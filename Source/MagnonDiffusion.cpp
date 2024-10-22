@@ -166,6 +166,9 @@ AMREX_GPU_MANAGED amrex::Real MagnonDiffusion::dt;
 AMREX_GPU_MANAGED amrex::Vector<int> MagnonDiffusion::bc_lo;
 AMREX_GPU_MANAGED amrex::Vector<int> MagnonDiffusion::bc_hi;
 
+AMREX_GPU_MANAGED amrex::Vector<int> MagnonDiffusion::T_bc_lo;
+AMREX_GPU_MANAGED amrex::Vector<int> MagnonDiffusion::T_bc_hi;
+
 // General BC parameters for Dirichlet, Neumann, or Robin
 // Dirichlet: phi = f
 // Neumann: d(phi)/dn = f
@@ -173,15 +176,24 @@ AMREX_GPU_MANAGED amrex::Vector<int> MagnonDiffusion::bc_hi;
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::bc_lo_f; // BC rhs.
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::bc_hi_f; // BC rhs.
     
+AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::T_bc_lo_f; // BC rhs.
+AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::T_bc_hi_f; // BC rhs.
+    
 // Robin BC parameters
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::bc_lo_a; // robin BC coeffs. 
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::bc_hi_a; // robin BC coeffs. 
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::bc_lo_b; // robin BC coeffs. 
 AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::bc_hi_b; // robin BC coeffs. 
 
+AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::T_bc_lo_a; // robin BC coeffs. 
+AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::T_bc_hi_a; // robin BC coeffs. 
+AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::T_bc_lo_b; // robin BC coeffs. 
+AMREX_GPU_MANAGED amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> MagnonDiffusion::T_bc_hi_b; // robin BC coeffs. 
+
 // magnon diffusion parameters
-AMREX_GPU_MANAGED amrex::Real MagnonDiffusion::D_const;
-AMREX_GPU_MANAGED amrex::Real MagnonDiffusion::tau_p;
+AMREX_GPU_MANAGED amrex::Real MagnonDiffusion::J_c;
+AMREX_GPU_MANAGED amrex::Real MagnonDiffusion::sigma_Pt;
+AMREX_GPU_MANAGED amrex::Real MagnonDiffusion::S_s;
 
 void InitializeMagnonDiffusionNamespace(const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_lo,
                                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& prob_hi) {
@@ -193,8 +205,9 @@ void InitializeMagnonDiffusionNamespace(const amrex::GpuArray<amrex::Real, AMREX
     amrex::Vector<amrex::Real> temp(AMREX_SPACEDIM); // temporary for parsing
 
     // parse in material properties
-    pp.get("D_const", D_const);
-    pp.get("tau_p", tau_p);
+    pp.get("J_c", J_c);
+    pp.get("sigma_Pt", sigma_Pt);
+    pp.get("S_s", S_s);
 
     // Default plot_int to -1, allow us to set it to something else in the inputs file
     //  If plot_int < 0 then no plot files will be writtenq
@@ -215,6 +228,12 @@ void InitializeMagnonDiffusionNamespace(const amrex::GpuArray<amrex::Real, AMREX
         bc_hi_a[i] = 0.;
         bc_lo_b[i] = 0.;
         bc_hi_b[i] = 0.;
+        T_bc_lo_f[i] = 0.;
+        T_bc_hi_f[i] = 0.;
+        T_bc_lo_a[i] = 0.;
+        T_bc_hi_a[i] = 0.;
+        T_bc_lo_b[i] = 0.;
+        T_bc_hi_b[i] = 0.;
     }
 
     // read in bc parameters
@@ -249,11 +268,48 @@ void InitializeMagnonDiffusionNamespace(const amrex::GpuArray<amrex::Real, AMREX
         }
     }
 
+    // read in temperature bc parameter
+    if (pp.queryarr("T_bc_lo_f",temp)) {
+        for (int i=0; i<AMREX_SPACEDIM; ++i) {
+            T_bc_lo_f[i] = temp[i];
+        }
+    }
+    if (pp.queryarr("T_bc_hi_f",temp)) {
+        for (int i=0; i<AMREX_SPACEDIM; ++i) {
+            T_bc_hi_f[i] = temp[i];
+        }
+    }
+    if (pp.queryarr("T_bc_lo_a",temp)) {
+        for (int i=0; i<AMREX_SPACEDIM; ++i) {
+            T_bc_lo_a[i] = temp[i];
+        }
+    }
+    if (pp.queryarr("T_bc_hi_a",temp)) {
+        for (int i=0; i<AMREX_SPACEDIM; ++i) {
+            T_bc_hi_a[i] = temp[i];
+        }
+    }
+    if (pp.queryarr("T_bc_lo_b",temp)) {
+        for (int i=0; i<AMREX_SPACEDIM; ++i) {
+            T_bc_lo_b[i] = temp[i];
+        }
+    }
+    if (pp.queryarr("T_bc_hi_b",temp)) {
+        for (int i=0; i<AMREX_SPACEDIM; ++i) {
+            T_bc_hi_b[i] = temp[i];
+        }
+    }
+
     // read in BC; see Src/Base/AMReX_BC_TYPES.H for supported types
     bc_lo.resize(AMREX_SPACEDIM);
     bc_hi.resize(AMREX_SPACEDIM);
     pp.getarr("bc_lo", bc_lo);
     pp.getarr("bc_hi", bc_hi);
+
+    T_bc_lo.resize(AMREX_SPACEDIM);
+    T_bc_hi.resize(AMREX_SPACEDIM);
+    pp.getarr("T_bc_lo", T_bc_lo);
+    pp.getarr("T_bc_hi", T_bc_hi);
 }
 
 void FillBoundaryPhysical (MultiFab& phi, const Geometry& geom) {
@@ -341,6 +397,99 @@ void FillBoundaryPhysical (MultiFab& phi, const Geometry& geom) {
                 {
                     if (k>hi) {
                         data(i,j,k) = bc_hi_f[2];
+                    }
+                });
+            }
+        }
+        
+    } // end MFIter
+}
+
+void FillBoundaryPhysical_T (MultiFab& phi, const Geometry& geom) {
+
+    // Physical Domain
+    Box dom(geom.Domain());
+    
+    for (MFIter mfi(phi, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        // one ghost cell
+        Box bx = mfi.growntilebox(1);
+
+        const Array4<Real>& data = phi.array(mfi);
+
+        // x ghost cells
+        int lo = dom.smallEnd(0);
+        int hi = dom.bigEnd(0);
+        
+        if (bx.smallEnd(0) < lo) {
+            if (T_bc_lo[0] == BCType::foextrap || T_bc_lo[0] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (i<lo) {
+                        data(i,j,k) = T_bc_lo_f[0];
+                    }
+                });
+            }
+        }
+
+        if (bx.bigEnd(0) > hi) {
+            if (T_bc_hi[0] == BCType::foextrap || T_bc_hi[0] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (i>hi) {
+                        data(i,j,k) = T_bc_hi_f[0];
+                    }
+                });
+            }
+        }
+        
+        // y ghost cells
+        lo = dom.smallEnd(1);
+        hi = dom.bigEnd(1);
+        
+        if (bx.smallEnd(1) < lo) {
+            if (T_bc_lo[1] == BCType::foextrap || T_bc_lo[1] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (j<lo) {
+                        data(i,j,k) = T_bc_lo_f[1];
+                    }
+                });
+            }
+        }
+
+        if (bx.bigEnd(1) > hi) {
+            if (T_bc_hi[1] == BCType::foextrap || T_bc_hi[1] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (j>hi) {
+                        data(i,j,k) = T_bc_hi_f[1];
+                    }
+                });
+            }
+        }
+        
+        // z ghost cells
+        lo = dom.smallEnd(2);
+        hi = dom.bigEnd(2);
+        
+        if (bx.smallEnd(2) < lo) {
+            if (T_bc_lo[2] == BCType::foextrap || T_bc_lo[2] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (k<lo) {
+                        data(i,j,k) = T_bc_lo_f[2];
+                    }
+                });
+            }
+        }
+
+        if (bx.bigEnd(2) > hi) {
+            if (T_bc_hi[2] == BCType::foextrap || T_bc_hi[2] == BCType::ext_dir) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (k>hi) {
+                        data(i,j,k) = T_bc_hi_f[2];
                     }
                 });
             }
@@ -556,83 +705,267 @@ void Initialize_Robin_Coefs(c_MagnonDiffusion& rMagnonDiffusion, const Geometry&
 	robin_f.FillBoundary(geom.periodicity());
 }
 
-void initialize_mf_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& mf_tau, MultiFab& mf_D)
+void Initialize_Robin_Coefs_T(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& robin_a, MultiFab& robin_b, MultiFab& robin_f)
 { 
     auto& rGprop = rMagnonDiffusion.get_GeometryProperties();
     Box const& domain = rGprop.geom.Domain();
 
     const auto dx = rGprop.geom.CellSizeArray();
     const auto& real_box = rGprop.geom.ProbDomain();
-    const auto iv_srl = mf_tau.ixType().toIntVect();
+    const auto iv_robin_a = robin_a.ixType().toIntVect();
+    const auto iv_robin_b = robin_b.ixType().toIntVect();
+    const auto iv_robin_f = robin_f.ixType().toIntVect();
 
-    for (MFIter mfi(mf_tau, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for (MFIter mfi(robin_a, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const auto& tau_arr = mf_tau.array(mfi);
-        const auto& D_arr = mf_D.array(mfi);
+        const auto& robin_a_arr = robin_a.array(mfi);
+        const auto& robin_b_arr = robin_b.array(mfi);
+        const auto& robin_f_arr = robin_f.array(mfi);
        
         // one ghost cell 
-        Box bx = mfi.validbox();
+        Box bx = mfi.growntilebox(1);
 
-	std::string tau_s;
-	std::unique_ptr<amrex::Parser> tau_parser;
-        std::string m_str_tau_function;
+	std::string robin_a_s;
+	std::unique_ptr<amrex::Parser> robin_a_parser;
+        std::string m_str_robin_a_function;
 
-	ParmParse pp_tau("mf_tau");
+	std::string robin_b_s;
+	std::unique_ptr<amrex::Parser> robin_b_parser;
+        std::string m_str_robin_b_function;
 
-	if (pp_tau.query("tau_function(x,y,z)", m_str_tau_function) ) {
-            tau_s = "parse_tau_function";
+	std::string robin_f_s;
+	std::unique_ptr<amrex::Parser> robin_f_parser;
+        std::string m_str_robin_f_function;
+
+	ParmParse pp_robin_a("T_robin_a");
+
+
+	if (pp_robin_a.query("T_robin_a_function(x,y,z)", m_str_robin_a_function) ) {
+            robin_a_s = "parse_robin_a_function";
         }
 
-        if (tau_s == "parse_tau_function") {
-            Store_parserString(pp_tau, "tau_function(x,y,z)", m_str_tau_function);
-            tau_parser = std::make_unique<amrex::Parser>(
-                                     makeParser(m_str_tau_function,{"x","y","z"}));
+        if (robin_a_s == "parse_robin_a_function") {
+            Store_parserString(pp_robin_a, "T_robin_a_function(x,y,z)", m_str_robin_a_function);
+            robin_a_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_robin_a_function,{"x","y","z"}));
         }
 
-	std::string D_s;
-	std::unique_ptr<amrex::Parser> D_parser;
-        std::string m_str_D_function;
-	
-        ParmParse pp_D("mf_D");
+	ParmParse pp_robin_b("T_robin_b");
 
-	if (pp_D.query("D_function(x,y,z)", m_str_D_function) ) {
-            D_s = "parse_D_function";
+
+	if (pp_robin_b.query("T_robin_b_function(x,y,z)", m_str_robin_b_function) ) {
+            robin_b_s = "parse_robin_b_function";
         }
 
-        if (D_s == "parse_D_function") {
-            Store_parserString(pp_D, "D_function(x,y,z)", m_str_D_function);
-            D_parser = std::make_unique<amrex::Parser>(
-                                     makeParser(m_str_D_function,{"x","y","z"}));
+        if (robin_b_s == "parse_robin_b_function") {
+            Store_parserString(pp_robin_b, "T_robin_b_function(x,y,z)", m_str_robin_b_function);
+            robin_b_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_robin_b_function,{"x","y","z"}));
         }
 
-        const auto& macro_parser_tau = tau_parser->compile<3>();
-        const auto& macro_parser_D = D_parser->compile<3>();
+	ParmParse pp_robin_f("T_robin_f");
+
+
+	if (pp_robin_f.query("T_robin_f_function(x,y,z)", m_str_robin_f_function) ) {
+            robin_f_s = "parse_robin_f_function";
+        }
+
+        if (robin_f_s == "parse_robin_f_function") {
+            Store_parserString(pp_robin_f, "T_robin_f_function(x,y,z)", m_str_robin_f_function);
+            robin_f_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_robin_f_function,{"x","y","z"}));
+        }
+
+        const auto& macro_parser_robin_a = robin_a_parser->compile<3>();
+        const auto& macro_parser_robin_b = robin_b_parser->compile<3>();
+        const auto& macro_parser_robin_f = robin_f_parser->compile<3>();
 
         amrex::ParallelFor(bx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_srl,macro_parser_tau,tau_arr);
-            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_srl,macro_parser_D,D_arr);
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_robin_a,macro_parser_robin_a,robin_a_arr);
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_robin_b, macro_parser_robin_b, robin_b_arr );
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_robin_f,macro_parser_robin_f,robin_f_arr);
         });
 
     }
-	mf_tau.FillBoundary(geom.periodicity());
-	mf_D.FillBoundary(geom.periodicity());
+	robin_a.FillBoundary(geom.periodicity());
+	robin_b.FillBoundary(geom.periodicity());
+	robin_f.FillBoundary(geom.periodicity());
 }
 
-void fill_acoef(MultiFab& mf_in){
+void initialize_sigma_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& sigma)
+{ 
+    auto& rGprop = rMagnonDiffusion.get_GeometryProperties();
+    Box const& domain = rGprop.geom.Domain();
+
+    const auto dx = rGprop.geom.CellSizeArray();
+    const auto& real_box = rGprop.geom.ProbDomain();
+    const auto iv_sigma = sigma.ixType().toIntVect();
+
+    for (MFIter mfi(sigma, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const auto& sigma_arr = sigma.array(mfi);
+       
+        // one ghost cell 
+	//Box bx = mfi.validbox();
+        const Box& bx = mfi.growntilebox(1);
+
+	std::string sigma_s;
+	std::unique_ptr<amrex::Parser> sigma_parser;
+        std::string m_str_sigma_function;
+
+	ParmParse pp_sigma("mf_sigma");
+
+	if (pp_sigma.query("sigma_function(x,y,z)", m_str_sigma_function) ) {
+            sigma_s = "parse_sigma_function";
+        }
+
+        if (sigma_s == "parse_sigma_function") {
+            Store_parserString(pp_sigma, "sigma_function(x,y,z)", m_str_sigma_function);
+            sigma_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_sigma_function,{"x","y","z"}));
+        }
+
+        const auto& macro_parser_sigma = sigma_parser->compile<3>();
+
+        amrex::ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_sigma,macro_parser_sigma,sigma_arr);
+        });
+
+    }
+	sigma.FillBoundary(geom.periodicity());
+}
+
+void initialize_lambda_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& lambda)
+{ 
+    auto& rGprop = rMagnonDiffusion.get_GeometryProperties();
+    Box const& domain = rGprop.geom.Domain();
+
+    const auto dx = rGprop.geom.CellSizeArray();
+    const auto& real_box = rGprop.geom.ProbDomain();
+    const auto iv_lambda = lambda.ixType().toIntVect();
+
+    for (MFIter mfi(lambda, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const auto& lambda_arr = lambda.array(mfi);
+       
+        // one ghost cell 
+        //Box bx = mfi.validbox();
+        const Box& bx = mfi.growntilebox(1);
+
+	std::string lambda_s;
+	std::unique_ptr<amrex::Parser> lambda_parser;
+        std::string m_str_lambda_function;
+	
+        ParmParse pp_lambda("mf_lambda");
+
+	if (pp_lambda.query("lambda_function(x,y,z)", m_str_lambda_function) ) {
+            lambda_s = "parse_lambda_function";
+        }
+
+        if (lambda_s == "parse_lambda_function") {
+            Store_parserString(pp_lambda, "lambda_function(x,y,z)", m_str_lambda_function);
+            lambda_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_lambda_function,{"x","y","z"}));
+        }
+
+        const auto& macro_parser_lambda = lambda_parser->compile<3>();
+
+        amrex::ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_lambda,macro_parser_lambda,lambda_arr);
+        });
+
+    }
+	lambda.FillBoundary(geom.periodicity());
+}
+
+void initialize_kappa_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& kappa)
+{ 
+    auto& rGprop = rMagnonDiffusion.get_GeometryProperties();
+    Box const& domain = rGprop.geom.Domain();
+
+    const auto dx = rGprop.geom.CellSizeArray();
+    const auto& real_box = rGprop.geom.ProbDomain();
+    const auto iv_kappa = kappa.ixType().toIntVect();
+
+    for (MFIter mfi(kappa, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const auto& kappa_arr = kappa.array(mfi);
+       
+        // one ghost cell 
+        //Box bx = mfi.validbox();
+        const Box& bx = mfi.growntilebox(1);
+
+	std::string kappa_s;
+	std::unique_ptr<amrex::Parser> kappa_parser;
+        std::string m_str_kappa_function;
+	
+        ParmParse pp_kappa("mf_kappa");
+
+	if (pp_kappa.query("kappa_function(x,y,z)", m_str_kappa_function) ) {
+            kappa_s = "parse_kappa_function";
+        }
+
+        if (kappa_s == "parse_kappa_function") {
+            Store_parserString(pp_kappa, "kappa_function(x,y,z)", m_str_kappa_function);
+            kappa_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_kappa_function,{"x","y","z"}));
+        }
+
+        const auto& macro_parser_kappa = kappa_parser->compile<3>();
+
+        amrex::ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_kappa,macro_parser_kappa,kappa_arr);
+        });
+
+    }
+	kappa.FillBoundary(geom.periodicity());
+}
+
+void fill_acoef(MultiFab& acoef_mf, MultiFab& sigma, MultiFab& lambda){
 
     // loop over boxes
-    for (MFIter mfi(mf_in); mfi.isValid(); ++mfi)
+    for (MFIter mfi(acoef_mf); mfi.isValid(); ++mfi)
     {   
-        const Box& bx = mfi.validbox();
+        //const Box& bx = mfi.validbox();
+        const Box& bx = mfi.growntilebox(1);
 
-        const Array4<Real>& mf_in_arr = mf_in.array(mfi);
+        const Array4<Real>& acoef_mf_arr = acoef_mf.array(mfi);
+        const Array4<Real>& sigma_arr = sigma.array(mfi);
+        const Array4<Real>& lambda_arr = lambda.array(mfi);
 
 
         amrex::ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {   
-            mf_in_arr(i,j,k) = 1.0 + dt*(1.0/mf_in_arr(i,j,k));
+            acoef_mf_arr(i,j,k) = 1.0 + dt*( sigma_arr(i,j,k) / ( lambda_arr(i,j,k)*lambda_arr(i,j,k) ) );
+
+        }); 
+    }   
+}
+
+
+void fill_bcoef(MultiFab& bcoef_mf, MultiFab& sigma){
+
+    // loop over boxes
+    for (MFIter mfi(bcoef_mf); mfi.isValid(); ++mfi)
+    {   
+        //const Box& bx = mfi.validbox();
+        const Box& bx = mfi.growntilebox(1);
+
+        const Array4<Real>& bcoef_mf_arr = bcoef_mf.array(mfi);
+        const Array4<Real>& sigma_arr = sigma.array(mfi);
+
+
+        amrex::ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {   
+            bcoef_mf_arr(i,j,k) = dt*sigma_arr(i,j,k);
 
         }); 
     }   
