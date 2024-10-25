@@ -7,7 +7,7 @@ USE_MPI   = TRUE
 USE_OMP   = FALSE
 COMP      = gnu
 DIM       = 3
-USE_EB    = TRUE
+USE_EB    = FALSE
 CXXSTD    = c++17
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
