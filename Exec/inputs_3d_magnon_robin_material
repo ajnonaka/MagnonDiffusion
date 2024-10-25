@@ -1,17 +1,17 @@
 # Implicit time step is set to 10^{DIM-1} * (explicit time step)
-domain.n_cell = 64 64 32
+domain.n_cell = 64 64 64
 
-domain.max_grid_size = 64 64 32
+domain.max_grid_size = 64 64 64
 
-domain.prob_lo = -250.0e-9 -32.0e-9 0.0e-9
-domain.prob_hi =  250.0e-9  32.0e-9 100.0e-9
+domain.prob_lo = -25.0e-6 -25.0e-6 0.0e-6
+domain.prob_hi =  25.0e-6  25.0e-6 50.0e-6
 
 domain.coord_sys = cartesian 
 
-nsteps = 100
-plot_int = 10
+nsteps = 10
+plot_int = 1
 
-dt = 1e-12
+dt = 1e-8
 
 # 0 = periodic
 # 2 = homogeneous Neumann (zero flux)
@@ -22,15 +22,27 @@ bc_hi = 2 2 6
 
 domain.is_periodic = 0 0 0
 
-tau_p = 1.0e-6
-D_const = 2.5e-5 # in unit of m^2/s
-
 ####################################
 ###### Robin Boundary Coefficients ######
 ####################################
 
-robin_a.robin_a_function(x,y,z) = "1.0 * (x > -200.e-9) * (x < -100.e-9) + 1.0*( x > 100.0e-9) * (x < 200.0e-9)"
-robin_b.robin_b_function(x,y,z) = "1.0 - 1.0 * (x > -200.e-9) * (x < -100.e-9) - 1.0*( x > 100.0e-9) * (x < 200.0e-9)"
-robin_f.robin_f_function(x,y,z) = "4.0e-6 * (x > -200.e-9) * (x < -100.e-9) + 0.0*( x > 100.0e-9) * (x < 200.0e-9)"
-mf_tau.tau_function(x,y,z) = "2.0e-6*( z < 40.0e-9) + 1.0e-6*(z >= 40.0e-9)"
-mf_D.D_function(x,y,z) = "5.0e-5*( z < 40.0e-9) + 2.5e-5*(z >= 40.0e-9)"
+robin_a.robin_a_function(x,y,z) = "1.0 * (x > -20.0e-6) * (x < -18e-6) + 1.0*( x > 18e-6) * (x < 20.0e-6)"
+robin_b.robin_b_function(x,y,z) = "1.0 - 1.0 * (x > -20.0e-6) * (x < -18e-6) - 1.0*( x > 18e-6) * (x < 20.0e-6)"
+robin_f.robin_f_function(x,y,z) = "4.0e-6 * (x > -20.0e-6) * (x < -18e-6) + 0.0*( x > 18e-6) * (x < 20.0e-6)"
+
+mf_sigma.sigma_function(x,y,z) = "0.0*( z < 40.0e-6) + 5.0e5*(z >= 40.0e-6)"
+mf_lambda.lambda_function(x,y,z) = "1.5e-9*( z < 40.0e-6) + 9.4e-6*(z >= 40.0e-6)"
+mf_kappa.kappa_function(x,y,z) = "0.00000307692*( z < 40.0e-6) + 0.00000230769*(z >= 40.0e-6)"
+mf_jc.jc_function(x,y,z) = "55000.0*(x > -20.0e-6) * (x < -18e-6)"
+
+T_bc_lo = 2 2 2
+T_bc_hi = 2 2 6
+#T_bc_lo_f = 298.0
+
+J_c = 1.43e11
+S_s = 4.5e-6
+sigma_Pt = 2.5e6
+
+T_robin_a.T_robin_a_function(x,y,z) = "1.0"
+T_robin_b.T_robin_b_function(x,y,z) = "0.0"
+T_robin_f.T_robin_f_function(x,y,z) = "300.0 + 1.4* (x > -20.0e-6) * (x < -18e-6)"

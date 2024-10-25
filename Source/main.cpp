@@ -90,12 +90,17 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
     acoef_mf.setVal(0.);
     bcoef_mf.setVal(0.);
     T_bcoef_mf.setVal(0.);
- 
+    
+    // Set up RHS
+    MultiFab Jc_mf(ba, dm, 1, 1); 
+    Jc_mf.setVal(0.);
+
     Initialize_Robin_Coefs(rMagnonDiffusion, geom, robin_hi_a, robin_hi_b, robin_hi_f);
     Initialize_Robin_Coefs_T(rMagnonDiffusion, geom, T_robin_hi_a, T_robin_hi_b, T_robin_hi_f);
     initialize_sigma_using_parser(rMagnonDiffusion, geom, sigma); //read position dependent sigma, lambda, and kappa using parser 
     initialize_lambda_using_parser(rMagnonDiffusion, geom, lambda); //read position dependent sigma, lambda, and kappa using parser 
     initialize_kappa_using_parser(rMagnonDiffusion, geom, kappa); //read position dependent sigma, lambda, and kappa using parser 
+    initialize_jc_using_parser(rMagnonDiffusion, geom, Jc_mf); //read position dependent sigma, lambda, and kappa using parser 
 
 #ifdef AMREX_USE_EB
     MultiFab Plt(ba, dm, 8, 0,  MFInfo(), *rGprop.pEB->p_factory_union);
@@ -113,7 +118,7 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
     MultiFab::Copy(Plt, T_robin_hi_b, 0, 3, 1, 0);
     MultiFab::Copy(Plt, T_robin_hi_f, 0, 4, 1, 0);
     MultiFab::Copy(Plt, sigma, 0, 5, 1, 0);
-    MultiFab::Copy(Plt, lambda, 0, 6, 1, 0);
+    MultiFab::Copy(Plt, Jc_mf, 0, 6, 1, 0);
     MultiFab::Copy(Plt, kappa, 0, 7, 1, 0);
 
     // Write a plotfile of the initial data if plot_int > 0 (plot_int was defined in the inputs file)
@@ -122,9 +127,9 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
         int n = 0;
         const std::string& pltfile = amrex::Concatenate("plt",n,5);
 #ifdef AMREX_USE_EB
-        EB_WriteSingleLevelPlotfile(pltfile, Plt, {"mu", "T", "robin_a", "robin_b", "robin_f", "sigma", "lambda", "kappa"}, geom, time, n);
+        EB_WriteSingleLevelPlotfile(pltfile, Plt, {"mu", "T", "robin_a", "robin_b", "robin_f", "sigma", "Jc", "kappa"}, geom, time, n);
 #else    
-        WriteSingleLevelPlotfile(pltfile, Plt, {"mu", "T", "robin_a", "robin_b", "robin_f", "sigma", "lambda", "kappa"}, geom, time, n);
+        WriteSingleLevelPlotfile(pltfile, Plt, {"mu", "T", "robin_a", "robin_b", "robin_f", "sigma", "Jc", "kappa"}, geom, time, n);
 #endif
     }
 
@@ -135,29 +140,30 @@ void main_main (c_MagnonDiffusion& rMagnonDiffusion)
     for (int n = 1; n <= nsteps; ++n)
     {
         MultiFab::Copy(mu_old, mu_new, 0, 0, 1, 0);
-        MultiFab::Copy(T_old, T_new, 0, 0, 1, 0);
+        MultiFab::Copy(T_old, T_new, 0, 0, 1, 1);
 
         // new_mu = (I-dt)^{-1} * old_mu + dt
         // magnon diffusion case has updated alpha and beta coeffs
         // (a * alpha * I - b del*beta del ) mu = RHS
-        advance_T(T_old, T_new, mu_new, T_robin_hi_a, T_robin_hi_b, T_robin_hi_f, T_bcoef_mf, sigma, kappa, rMagnonDiffusion, geom);
-        advance_mu(mu_old, mu_new, T_old, robin_hi_a, robin_hi_b, robin_hi_f, sigma, acoef_mf, bcoef_mf, rMagnonDiffusion, geom);
+        advance_T(T_old, T_new, mu_new, T_robin_hi_a, T_robin_hi_b, T_robin_hi_f, T_bcoef_mf, sigma, kappa, Jc_mf, rMagnonDiffusion, geom);
+        advance_mu(mu_old, mu_new, T_new, robin_hi_a, robin_hi_b, robin_hi_f, sigma, acoef_mf, bcoef_mf, rMagnonDiffusion, geom);
         time = time + dt;
 
         // Tell the I/O Processor to write out which step we're doing
         amrex::Print() << "Advanced step " << n << "\n";
 
-        // Write a plotfile of the current data (plot_int was defined in the inputs file)
-        MultiFab::Copy(Plt, mu_new, 0, 0, 1, 0);
-        MultiFab::Copy(Plt, T_new, 0, 1, 1, 0);
-
         if (plot_int > 0 && n%plot_int == 0)
         {
+
+            // Write a plotfile of the current data (plot_int was defined in the inputs file)
+            MultiFab::Copy(Plt, mu_new, 0, 0, 1, 0);
+            MultiFab::Copy(Plt, T_new, 0, 1, 1, 0);
+
             const std::string& pltfile = amrex::Concatenate("plt",n,5);
 #ifdef AMREX_USE_EB
-            EB_WriteSingleLevelPlotfile(pltfile, Plt, {"mu", "T", "robin_a", "robin_b", "robin_f","sigma", "lambda", "kappa"}, geom, time, n);
+            EB_WriteSingleLevelPlotfile(pltfile, Plt, {"mu", "T", "robin_a", "robin_b", "robin_f","sigma", "Jc", "kappa"}, geom, time, n);
 #else    
-            WriteSingleLevelPlotfile(pltfile, Plt, {"mu", "T", "robin_a", "robin_b", "robin_f", "sigma", "lambda", "kappa"}, geom, time, n);
+            WriteSingleLevelPlotfile(pltfile, Plt, {"mu", "T", "robin_a", "robin_b", "robin_f", "sigma", "Jc", "kappa"}, geom, time, n);
 #endif
         }
     }

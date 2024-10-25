@@ -245,6 +245,7 @@ void advance_T (MultiFab& T_old,
                 MultiFab& bcoef_mf,
                 MultiFab& sigma,
                 MultiFab& kappa,
+                MultiFab& Jc_mf,
                 c_MagnonDiffusion& rMagnonDiffusion,
                 const Geometry& geom)
 {
@@ -441,7 +442,7 @@ void advance_T (MultiFab& T_old,
 
     // Set up RHS
     MultiFab rhs(ba, dmap, 1, 1);
-    fill_rhs_T(rhs, phi_old, T_old, sigma, geom);
+    fill_rhs_T(rhs, Jc_mf, T_old, sigma, robin_hi_f, geom);
     
 
     // relative and absolute tolerances for linear solve
@@ -482,10 +483,13 @@ void fill_rhs(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sigma
     }   
 }
 
-void fill_rhs_T(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sigma, const Geometry& geom)
+void fill_rhs_T(MultiFab& rhs, MultiFab& Jc_mf, MultiFab& T_old, MultiFab& sigma, MultiFab& robin_hi_f, const Geometry& geom)
 {
 
     GpuArray<Real,AMREX_SPACEDIM> dx = geom.CellSizeArray();
+
+    // Physical Domain
+    Box dom(geom.Domain());
 
    // loop over boxes
     for (MFIter mfi(rhs); mfi.isValid(); ++mfi)
@@ -495,14 +499,26 @@ void fill_rhs_T(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sig
         const Array4<Real>& rhs_arr = rhs.array(mfi);
         const Array4<Real>& sigma_arr = sigma.array(mfi);
         const Array4<Real>& T_arr = T_old.array(mfi);
-        const Array4<Real>& phi_arr = phi_old.array(mfi);
+        const Array4<Real>& jc_arr = Jc_mf.array(mfi);
+        const Array4<Real>& robin_hi_f_arr = robin_hi_f.array(mfi);
 
 
-        amrex::ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {   
-            rhs_arr(i,j,k) = T_arr(i,j,k) + sigma_arr(i,j,k)*S_s*dt*Laplacian(phi_arr,i,j,k,dx) + J_c*J_c*dt/sigma_Pt;
-            //rhs_arr(i,j,k) = T_arr(i,j,k) + J_c*J_c*dt/sigma_Pt;
+        // z ghost cells
+        int lo = dom.smallEnd(2);
+        int hi = dom.bigEnd(2);
 
-        }); 
+        //if (bx.bigEnd(2) > hi) {
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k>hi) {
+                    //amrex::Print() << "T("<< i << "," << j << "," << k << ") = "<< T_arr(i,j,k) << "\n";
+                    rhs_arr(i,j,k) = robin_hi_f_arr(i,j,k) + jc_arr(i,j,k)*jc_arr(i,j,k)*dt/sigma_arr(i,j,k);
+                    //rhs_arr(i,j,k) = T_arr(i,j,k) + jc_arr(i,j,k)*jc_arr(i,j,k)*dt/sigma_arr(i,j,k);
+                } else {
+                    rhs_arr(i,j,k) = T_arr(i,j,k);
+                }
+            });
+        //}
+
     }   
 }

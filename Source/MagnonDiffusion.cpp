@@ -929,6 +929,52 @@ void initialize_kappa_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Ge
 	kappa.FillBoundary(geom.periodicity());
 }
 
+
+void initialize_jc_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& Jc_mf)
+{ 
+    auto& rGprop = rMagnonDiffusion.get_GeometryProperties();
+    Box const& domain = rGprop.geom.Domain();
+
+    const auto dx = rGprop.geom.CellSizeArray();
+    const auto& real_box = rGprop.geom.ProbDomain();
+    const auto iv_jc = Jc_mf.ixType().toIntVect();
+
+    for (MFIter mfi(Jc_mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const auto& jc_arr = Jc_mf.array(mfi);
+       
+        // one ghost cell 
+        //Box bx = mfi.validbox();
+        const Box& bx = mfi.growntilebox(1);
+
+	std::string jc_s;
+	std::unique_ptr<amrex::Parser> jc_parser;
+        std::string m_str_jc_function;
+	
+        ParmParse pp_jc("mf_jc");
+
+	if (pp_jc.query("jc_function(x,y,z)", m_str_jc_function) ) {
+            jc_s = "parse_jc_function";
+        }
+
+        if (jc_s == "parse_jc_function") {
+            Store_parserString(pp_jc, "jc_function(x,y,z)", m_str_jc_function);
+            jc_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_jc_function,{"x","y","z"}));
+        }
+
+        const auto& macro_parser_jc = jc_parser->compile<3>();
+
+        amrex::ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_jc,macro_parser_jc,jc_arr);
+        });
+
+    }
+	Jc_mf.FillBoundary(geom.periodicity());
+}
+
 void fill_acoef(MultiFab& acoef_mf, MultiFab& sigma, MultiFab& lambda){
 
     // loop over boxes

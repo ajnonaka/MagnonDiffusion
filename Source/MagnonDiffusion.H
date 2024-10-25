@@ -127,6 +127,7 @@ void advance_T (MultiFab& T_old,
                  MultiFab& bcoef_mf,
                  MultiFab& sigma,
                  MultiFab& kappa,
+                 MultiFab& Jc_mf,
                  c_MagnonDiffusion& rMagnonDiffusion,
                  const Geometry& geom);
 
@@ -154,11 +155,12 @@ void Initialize_Robin_Coefs_T(c_MagnonDiffusion& rMagnonDiffusion, const Geometr
 void initialize_sigma_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& sigma);
 void initialize_lambda_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& lambda);
 void initialize_kappa_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& kappa);
+void initialize_jc_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& Jc_mf);
 
 void fill_acoef(MultiFab& acoef_mf, MultiFab& sigma, MultiFab& lambda);
 void fill_bcoef(MultiFab& acoef_mf, MultiFab& sigma);
 
 void fill_rhs(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sigma, const Geometry& geom);
-void fill_rhs_T(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sigma, const Geometry& geom);
+void fill_rhs_T(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sigma, MultiFab& robin_hi_f, const Geometry& geom);
 
 #endif
