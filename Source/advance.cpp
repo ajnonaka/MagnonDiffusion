@@ -15,6 +15,7 @@ using namespace MagnonDiffusion;
 void advance_mu (MultiFab& phi_old,
                  MultiFab& phi_new,
                  MultiFab& T_old,
+                 Array<MultiFab, AMREX_SPACEDIM> &J_mu,
                  MultiFab& robin_hi_a,
                  MultiFab& robin_hi_b,
                  MultiFab& robin_hi_f,
@@ -230,6 +231,15 @@ void advance_mu (MultiFab& phi_old,
     // Solve linear system
     mlmg.solve({&phi_new}, {&rhs}, tol_rel, tol_abs);
 
+    // Prepare the vector of arrays of pointers to the gradient MultiFabs.
+    Vector<Array<MultiFab*, AMREX_SPACEDIM>> grad_phi_ptr(1);
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        grad_phi_ptr[0][i] = &J_mu[i];
+    }
+
+    // Compute the gradient of the solution
+    mlmg.getGradSolution(grad_phi_ptr);
+
 #ifdef AMREX_USE_EB
     ebmlmg.solve({&phi_new}, {&rhs}, tol_rel, tol_abs);
 #endif
@@ -239,6 +249,7 @@ void advance_mu (MultiFab& phi_old,
 void advance_T (MultiFab& T_old,
                 MultiFab& T_new,
                 MultiFab& phi_old,
+                Array<MultiFab, AMREX_SPACEDIM> &J_T,
                 MultiFab& robin_hi_a,
                 MultiFab& robin_hi_b,
                 MultiFab& robin_hi_f,
@@ -246,6 +257,7 @@ void advance_T (MultiFab& T_old,
                 MultiFab& sigma,
                 MultiFab& kappa,
                 MultiFab& Jc_mf,
+                MultiFab& Cv_mf,
                 c_MagnonDiffusion& rMagnonDiffusion,
                 const Geometry& geom)
 {
@@ -442,7 +454,7 @@ void advance_T (MultiFab& T_old,
 
     // Set up RHS
     MultiFab rhs(ba, dmap, 1, 1);
-    fill_rhs_T(rhs, Jc_mf, T_old, sigma, robin_hi_f, geom);
+    fill_rhs_T(rhs, Jc_mf, Cv_mf, T_old, sigma, robin_hi_f, geom);
     
 
     // relative and absolute tolerances for linear solve
@@ -451,6 +463,15 @@ void advance_T (MultiFab& T_old,
 
     // Solve linear system
     mlmg.solve({&T_new}, {&rhs}, tol_rel, tol_abs);
+
+    // Prepare the vector of arrays of pointers to the gradient MultiFabs.
+    Vector<Array<MultiFab*, AMREX_SPACEDIM>> grad_phi_ptr(1);
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        grad_phi_ptr[0][i] = &J_T[i];
+    }
+
+    // Compute the gradient of the solution
+    mlmg.getGradSolution(grad_phi_ptr);
 
 #ifdef AMREX_USE_EB
     ebmlmg.solve({&T_new}, {&rhs}, tol_rel, tol_abs);
@@ -483,7 +504,7 @@ void fill_rhs(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sigma
     }   
 }
 
-void fill_rhs_T(MultiFab& rhs, MultiFab& Jc_mf, MultiFab& T_old, MultiFab& sigma, MultiFab& robin_hi_f, const Geometry& geom)
+void fill_rhs_T(MultiFab& rhs, MultiFab& Jc_mf, MultiFab& Cv_mf, MultiFab& T_old, MultiFab& sigma, MultiFab& robin_hi_f, const Geometry& geom)
 {
 
     GpuArray<Real,AMREX_SPACEDIM> dx = geom.CellSizeArray();
@@ -500,6 +521,7 @@ void fill_rhs_T(MultiFab& rhs, MultiFab& Jc_mf, MultiFab& T_old, MultiFab& sigma
         const Array4<Real>& sigma_arr = sigma.array(mfi);
         const Array4<Real>& T_arr = T_old.array(mfi);
         const Array4<Real>& jc_arr = Jc_mf.array(mfi);
+        const Array4<Real>& Cv_arr = Cv_mf.array(mfi);
         const Array4<Real>& robin_hi_f_arr = robin_hi_f.array(mfi);
 
 
@@ -512,7 +534,7 @@ void fill_rhs_T(MultiFab& rhs, MultiFab& Jc_mf, MultiFab& T_old, MultiFab& sigma
             {
                 if (k>hi) {
                     //amrex::Print() << "T("<< i << "," << j << "," << k << ") = "<< T_arr(i,j,k) << "\n";
-                    rhs_arr(i,j,k) = robin_hi_f_arr(i,j,k) + jc_arr(i,j,k)*jc_arr(i,j,k)*dt/sigma_arr(i,j,k);
+                    rhs_arr(i,j,k) = robin_hi_f_arr(i,j,k) + jc_arr(i,j,k)*jc_arr(i,j,k)*dt/sigma_arr(i,j,k)/Cv_arr(i,j,k);
                     //rhs_arr(i,j,k) = T_arr(i,j,k) + jc_arr(i,j,k)*jc_arr(i,j,k)*dt/sigma_arr(i,j,k);
                 } else {
                     rhs_arr(i,j,k) = T_arr(i,j,k);

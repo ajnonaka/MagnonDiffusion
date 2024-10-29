@@ -975,6 +975,51 @@ void initialize_jc_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geome
 	Jc_mf.FillBoundary(geom.periodicity());
 }
 
+void initialize_Cv_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& Cv_mf)
+{ 
+    auto& rGprop = rMagnonDiffusion.get_GeometryProperties();
+    Box const& domain = rGprop.geom.Domain();
+
+    const auto dx = rGprop.geom.CellSizeArray();
+    const auto& real_box = rGprop.geom.ProbDomain();
+    const auto iv_cv = Cv_mf.ixType().toIntVect();
+
+    for (MFIter mfi(Cv_mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const auto& cv_arr = Cv_mf.array(mfi);
+       
+        // one ghost cell 
+        //Box bx = mfi.validbox();
+        const Box& bx = mfi.growntilebox(1);
+
+	std::string cv_s;
+	std::unique_ptr<amrex::Parser> cv_parser;
+        std::string m_str_cv_function;
+	
+        ParmParse pp_cv("mf_cv");
+
+	if (pp_cv.query("cv_function(x,y,z)", m_str_cv_function) ) {
+            cv_s = "parse_cv_function";
+        }
+
+        if (cv_s == "parse_cv_function") {
+            Store_parserString(pp_cv, "cv_function(x,y,z)", m_str_cv_function);
+            cv_parser = std::make_unique<amrex::Parser>(
+                                     makeParser(m_str_cv_function,{"x","y","z"}));
+        }
+
+        const auto& macro_parser_cv = cv_parser->compile<3>();
+
+        amrex::ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            eXstatic_MFab_Util::ConvertParserIntoMultiFab_3vars(i,j,k,dx,real_box,iv_cv,macro_parser_cv,cv_arr);
+        });
+
+    }
+	Cv_mf.FillBoundary(geom.periodicity());
+}
+
 void fill_acoef(MultiFab& acoef_mf, MultiFab& sigma, MultiFab& lambda){
 
     // loop over boxes
@@ -1012,6 +1057,62 @@ void fill_bcoef(MultiFab& bcoef_mf, MultiFab& sigma){
         amrex::ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {   
             bcoef_mf_arr(i,j,k) = dt*sigma_arr(i,j,k);
+
+        }); 
+    }   
+}
+
+void fill_bcoef_T(MultiFab& bcoef_mf, MultiFab& kappa, MultiFab& Cv_mf){
+
+    // loop over boxes
+    for (MFIter mfi(bcoef_mf); mfi.isValid(); ++mfi)
+    {   
+        //const Box& bx = mfi.validbox();
+        const Box& bx = mfi.growntilebox(1);
+
+        const Array4<Real>& bcoef_mf_arr = bcoef_mf.array(mfi);
+        const Array4<Real>& kappa_arr = kappa.array(mfi);
+        const Array4<Real>& Cv_arr = Cv_mf.array(mfi);
+
+
+        amrex::ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {   
+            bcoef_mf_arr(i,j,k) = dt*kappa_arr(i,j,k)/Cv_arr(i,j,k);
+
+        }); 
+    }   
+}
+
+void compute_currents(Array<MultiFab, AMREX_SPACEDIM> &J_mu,
+                       Array<MultiFab, AMREX_SPACEDIM> &J_T,
+                       MultiFab& sigma,
+                       MultiFab& kappa){
+
+    // loop over boxes
+    for (MFIter mfi(J_mu[0]); mfi.isValid(); ++mfi)
+    {   
+        //const Box& bx = mfi.validbox();
+        const Box& bx = mfi.growntilebox(1);
+
+        const Array4<Real>& J_mux = J_mu[0].array(mfi);
+        const Array4<Real>& J_muy = J_mu[1].array(mfi);
+        const Array4<Real>& J_muz = J_mu[2].array(mfi);
+        const Array4<Real>& J_Tx = J_T[0].array(mfi);
+        const Array4<Real>& J_Ty = J_T[1].array(mfi);
+        const Array4<Real>& J_Tz = J_T[2].array(mfi);
+        const Array4<Real>& sigma_arr = sigma.array(mfi);
+        const Array4<Real>& kappa_arr = kappa.array(mfi);
+
+
+        amrex::ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {   
+            J_mux(i,j,k) = -1.0*sigma_arr(i,j,k)*J_mux(i,j,k) - 1.0*sigma_arr(i,j,k)*S_s*J_Tx(i,j,k);
+            J_muy(i,j,k) = -1.0*sigma_arr(i,j,k)*J_muy(i,j,k) - 1.0*sigma_arr(i,j,k)*S_s*J_Ty(i,j,k);
+            J_muz(i,j,k) = -1.0*sigma_arr(i,j,k)*J_muz(i,j,k) - 1.0*sigma_arr(i,j,k)*S_s*J_Tz(i,j,k);
+
+            J_Tx(i,j,k) = -1.0*kappa_arr(i,j,k)*J_Tx(i,j,k);
+            J_Ty(i,j,k) = -1.0*kappa_arr(i,j,k)*J_Ty(i,j,k);
+            J_Tz(i,j,k) = -1.0*kappa_arr(i,j,k)*J_Tz(i,j,k);
 
         }); 
     }   
