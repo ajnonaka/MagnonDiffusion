@@ -109,6 +109,7 @@ void InitializeMagnonDiffusionNamespace (const amrex::GpuArray<amrex::Real, AMRE
 void advance_mu (MultiFab& phi_old,
                  MultiFab& phi_new,
                  MultiFab& T_old,
+                 Array<MultiFab, AMREX_SPACEDIM> &J_mu,
                  MultiFab& robin_hi_a,
                  MultiFab& robin_hi_b,
                  MultiFab& robin_hi_f,
@@ -121,6 +122,7 @@ void advance_mu (MultiFab& phi_old,
 void advance_T (MultiFab& T_old,
                  MultiFab& T_new,
                  MultiFab& phi_old,
+                 Array<MultiFab, AMREX_SPACEDIM> &J_T,
                  MultiFab& robin_hi_a,
                  MultiFab& robin_hi_b,
                  MultiFab& robin_hi_f,
@@ -128,8 +130,15 @@ void advance_T (MultiFab& T_old,
                  MultiFab& sigma,
                  MultiFab& kappa,
                  MultiFab& Jc_mf,
+                 MultiFab& Cv_mf,
                  c_MagnonDiffusion& rMagnonDiffusion,
                  const Geometry& geom);
+
+void compute_currents(Array<MultiFab, AMREX_SPACEDIM> &J_mu,
+                      Array<MultiFab, AMREX_SPACEDIM> &J_T, 
+                      MultiFab& sigma, 
+                      MultiFab& kappa); 
+
 
 void FillBoundaryPhysical (MultiFab& phi, const Geometry& geom);
 void FillBoundaryPhysical_T (MultiFab& phi, const Geometry& geom);
@@ -156,11 +165,14 @@ void initialize_sigma_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Ge
 void initialize_lambda_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& lambda);
 void initialize_kappa_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& kappa);
 void initialize_jc_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& Jc_mf);
+void initialize_Cv_using_parser(c_MagnonDiffusion& rMagnonDiffusion, const Geometry& geom, MultiFab& Cv_mf);
 
 void fill_acoef(MultiFab& acoef_mf, MultiFab& sigma, MultiFab& lambda);
 void fill_bcoef(MultiFab& acoef_mf, MultiFab& sigma);
+void fill_bcoef_T(MultiFab& acoef_mf, MultiFab& kappa, MultiFab& Cv_mf);
 
 void fill_rhs(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sigma, const Geometry& geom);
-void fill_rhs_T(MultiFab& rhs, MultiFab& phi_old, MultiFab& T_old, MultiFab& sigma, MultiFab& robin_hi_f, const Geometry& geom);
+void fill_rhs_T(MultiFab& rhs, MultiFab& Jc_mf, MultiFab& Cv_mf, MultiFab& T_old, MultiFab& sigma, MultiFab& robin_hi_f, const Geometry& geom);
+
 
 #endif
